@@ -20,8 +20,10 @@
 #include "song.h"
 #include "track.h"
 #include "track_info.h"
+#include "player.h"
 #include <unordered_set>
 #include <map>
+#include <memory>
 
 Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false),
@@ -779,18 +781,42 @@ void Editor::ShowTrackPositions()
                         
                         // Check if the macro track is in our map
                         auto macro_it = map.find(track_event.param);
+                        Track_Info* macro_info = nullptr;
+                        std::unique_ptr<Track_Info> generated_macro_info;
+                        
                         if(macro_it != map.end())
                         {
-                            auto& macro_info = macro_it->second;
+                            // Macro track is in the map (shouldn't happen for track_id >= 16, but check anyway)
+                            macro_info = &macro_it->second;
+                        }
+                        else
+                        {
+                            // Macro track is not in map (track_id >= max_channels)
+                            // Generate Track_Info for it on the fly
+                            try
+                            {
+                                Track& macro_track = song->get_track(track_event.param);
+                                generated_macro_info = std::make_unique<Track_Info>(Track_Info_Generator(*song, macro_track));
+                                macro_info = generated_macro_info.get();
+                            }
+                            catch(std::exception&)
+                            {
+                                // Macro track doesn't exist, skip
+                                continue;
+                            }
+                        }
+                        
+                        if(macro_info != nullptr)
+                        {
                             int macro_offset_loop = 0;
                             
                             // Handle looping in macro track
-                            if(macro_offset > macro_info.length && macro_info.loop_length)
-                                macro_offset_loop = ((macro_offset - macro_info.loop_start) / macro_info.loop_length) * macro_info.loop_length;
+                            if(macro_offset > macro_info->length && macro_info->loop_length)
+                                macro_offset_loop = ((macro_offset - macro_info->loop_start) / macro_info->loop_length) * macro_info->loop_length;
                             
                             // Find events in the macro track
-                            auto macro_event_it = macro_info.events.lower_bound(macro_offset - macro_offset_loop);
-                            if(macro_event_it != macro_info.events.begin())
+                            auto macro_event_it = macro_info->events.lower_bound(macro_offset - macro_offset_loop);
+                            if(macro_event_it != macro_info->events.begin())
                             {
                                 --macro_event_it;
                                 auto macro_event = macro_event_it->second;
