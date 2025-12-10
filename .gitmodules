@@ -3,4 +3,4 @@
 	url = https://github.com/ocornut/imgui.git
 [submodule "deps/mmlgui"]
 	path = deps/mmlgui
-	url = git@github.com:garrettjwilke/mmlgui
+	url = https://github.com/garrettjwilke/mmlgui.git
