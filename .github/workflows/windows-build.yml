@@ -1,9 +1,7 @@
-name: Windows Build
+name: Windows Manual Build
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
+  workflow_dispatch:    # ← manual trigger only
 
 jobs:
   build-windows:
@@ -15,17 +13,10 @@ jobs:
         with:
           submodules: false
 
-      - name: Verify submodules are NOT pulled
-        shell: pwsh
-        run: |
-          Write-Host "imgui exists? " (Test-Path deps/imgui)
-          Write-Host "mmlgui exists? " (Test-Path deps/mmlgui)
-
       - name: Install CMake + Ninja
         uses: lukka/get-cmake@latest
 
-      # Build GLFW from source so find_package(glfw3 REQUIRED) works
-      - name: Build + Install GLFW
+      - name: Build + Install GLFW (for find_package)
         shell: pwsh
         run: |
           git clone https://github.com/glfw/glfw.git --depth 1
@@ -34,7 +25,7 @@ jobs:
           cmake --build build --config Release
           cmake --install build --prefix "C:/glfw"
 
-      - name: Configure CMake (this is where your submodule-update commands run)
+      - name: Configure CMake (your CMake handles submodules)
         shell: pwsh
         run: |
           cmake -S . -B build `
@@ -51,3 +42,4 @@ jobs:
         with:
           name: mdsdrv-editor-windows
           path: build/mdsdrv-editor.exe
+
