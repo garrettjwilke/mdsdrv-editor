@@ -12,16 +12,21 @@
 #include "export_window.h"
 #include "pcm_tool_window.h"
 #include "mdsbin_export_window.h"
+#include "theme.h"
 
 Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false),
                    m_showConfirmNewDialog(false), m_showConfirmOpenDialog(false),
-                   m_pendingNewFile(false), m_pendingOpenFile(false) {
+                   m_pendingNewFile(false), m_pendingOpenFile(false),
+                   m_showThemeWindow(false), m_themeRequestFocus(false), m_themeSelection(0) {
     m_text = "// Welcome to MDSDRV Editor\n// Start typing...\n";
     m_songManager = std::make_unique<Song_Manager>();
     m_exportWindow = std::make_unique<ExportWindow>();
     m_pcmToolWindow = std::make_unique<PCMToolWindow>();
     m_mdsBinExportWindow = std::make_unique<MDSBinExportWindow>();
+    
+    // Apply initial theme (higher-contrast dark)
+    Theme::ApplyDark();
     
     // Set callback for creating new PCM tool windows
     PCMToolWindow::SetCreateWindowCallback([this](std::shared_ptr<PCMToolWindow> window) {
@@ -43,6 +48,7 @@ void Editor::Render() {
     RenderConfirmDialogs();
     RenderExportWindow();
     RenderMDSBinExportWindow();
+    RenderThemeWindow();
     RenderPCMToolWindow();
 }
 
@@ -94,7 +100,8 @@ void Editor::RenderMenuBar() {
         
         if (ImGui::BeginMenu("View")) {
             if (ImGui::MenuItem("Theme")) {
-                // TODO: Theme selector
+                m_showThemeWindow = true;
+                m_themeRequestFocus = true;
             }
             ImGui::EndMenu();
         }
@@ -439,6 +446,39 @@ void Editor::RenderMDSBinExportWindow() {
     if (m_mdsBinExportWindow) {
         m_mdsBinExportWindow->Render();
     }
+}
+
+void Editor::RenderThemeWindow() {
+    if (!m_showThemeWindow) return;
+
+    ImGui::SetNextWindowSize(ImVec2(320, 180), ImGuiCond_FirstUseEver);
+    if (m_themeRequestFocus) {
+        ImGui::SetNextWindowFocus();
+        m_themeRequestFocus = false;
+    }
+
+    if (ImGui::Begin("Theme", &m_showThemeWindow)) {
+        ImGui::Text("Choose a theme:");
+        ImGui::Separator();
+
+        bool changed = false;
+        changed |= ImGui::RadioButton("High-contrast Dark", &m_themeSelection, 0);
+        changed |= ImGui::RadioButton("Light", &m_themeSelection, 1);
+        changed |= ImGui::RadioButton("Classic", &m_themeSelection, 2);
+
+        if (changed) {
+            switch (m_themeSelection) {
+                case 0: Theme::ApplyDark(); break;
+                case 1: Theme::ApplyLight(); break;
+                case 2: Theme::ApplyClassic(); break;
+                default: Theme::ApplyDark(); break;
+            }
+        }
+
+        ImGui::Separator();
+        ImGui::TextWrapped("Tip: use Light mode if the dark palette is hard to read.");
+    }
+    ImGui::End();
 }
 
 void Editor::RenderPCMToolWindow() {

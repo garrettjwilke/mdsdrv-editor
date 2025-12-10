@@ -37,6 +37,9 @@ private:
     std::list<std::shared_ptr<PCMToolWindow>> m_pcmToolWindows;
     bool m_isPlaying;
     bool m_debug;
+    bool m_showThemeWindow;
+    bool m_themeRequestFocus;
+    int m_themeSelection; // 0=Dark,1=Light,2=Classic
     
     // File dialogs
     bool m_showOpenDialog;
@@ -56,6 +59,7 @@ private:
     void RenderConfirmDialogs();
     void RenderExportWindow();
     void RenderMDSBinExportWindow();
+    void RenderThemeWindow();
     void RenderPCMToolWindow();
     bool CheckUnsavedChanges();
     void UpdateBuffer();
