@@ -69,6 +69,11 @@ int main() {
     EMSCRIPTEN_MAINLOOP_END;
 #endif
 
+    // Stop any playback and clean up audio before shutting down window
+    editor.StopMML();
+    audioManager.clean_up();
+    std::cout << "[Main] Audio_Manager cleaned up" << std::endl;
+    
     window.Shutdown();
     return 0;
 }

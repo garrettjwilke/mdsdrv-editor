@@ -19,6 +19,7 @@ public:
     void NewFile();
     void SetDebug(bool enabled) { m_debug = enabled; }
     bool GetDebug() const { return m_debug; }
+    void StopMML();
 
 private:
     std::string m_text;
@@ -48,7 +49,6 @@ private:
     bool CheckUnsavedChanges();
     void UpdateBuffer();
     void PlayMML();
-    void StopMML();
     void DebugLog(const std::string& message);
 };
 
