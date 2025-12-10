@@ -46,7 +46,6 @@ int main() {
     #endif
 
     Editor editor;
-    Theme::ApplyDefault();
 
 #ifdef __EMSCRIPTEN__
     // Disable file system access for Emscripten

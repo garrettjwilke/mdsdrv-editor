@@ -4,6 +4,7 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <iostream>
+#include <filesystem>
 
 Window::Window() : m_window(nullptr), m_width(0), m_height(0) {
 }
@@ -46,6 +47,20 @@ bool Window::Initialize(int width, int height, const std::string& title) {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    // Place imgui.ini in user config dir instead of current working dir
+    try {
+        const char* home = std::getenv("HOME");
+        std::filesystem::path cfgDir = home ? std::filesystem::path(home) / ".config" / "mdsdrv-editor"
+                                            : std::filesystem::temp_directory_path() / "mdsdrv-editor";
+        std::filesystem::create_directories(cfgDir);
+        static std::string iniPath; // static to keep storage alive for ImGui
+        iniPath = (cfgDir / "imgui.ini").string();
+        io.IniFilename = iniPath.c_str();
+    } catch (...) {
+        // Fallback: disable saving if path resolution fails
+        io.IniFilename = nullptr;
+    }
 
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(m_window, true);

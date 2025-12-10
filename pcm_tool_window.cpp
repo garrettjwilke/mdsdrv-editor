@@ -417,7 +417,32 @@ void PCMToolWindow::Render()
                     }
                 }
             }
-            
+
+            // Preview controls directly under the waveform
+            bool is_playing = (m_preview_stream && !m_preview_stream->get_finished());
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + margin_y * 0.5f);
+            ImGui::Checkbox("Loop Preview", &m_preview_loop);
+            ImGui::SameLine();
+            const char* preview_label = is_playing ? "Stop Preview" : "Preview     ";
+            ImVec2 preview_size = ImVec2(ImGui::CalcTextSize("Stop Preview").x + ImGui::GetStyle().FramePadding.x * 2.0f, 0);
+            if (ImGui::Button(preview_label, preview_size))
+            {
+                if (is_playing)
+                    StopPreview();
+                else
+                    StartPreview();
+            }
+            // Place the slice edit button on the same row, aligned right
+            ImGui::SameLine();
+            float right_button_width = 170.0f;
+            float cursor_x = ImGui::GetWindowContentRegionMin().x + ImGui::GetContentRegionAvail().x - right_button_width;
+            if (cursor_x < ImGui::GetCursorPosX()) cursor_x = ImGui::GetCursorPosX();
+            ImGui::SetCursorPosX(cursor_x);
+            if (ImGui::Button("Edit Slice In New Window", ImVec2(right_button_width, 0))) {
+                StopPreview();
+                ExportToNewWindow();
+            }
+
             ImGui::SetCursorPosY(ImGui::GetCursorPosY() + margin_y);
             
             int max_sample = (int)m_pcm_data.size();
@@ -429,20 +454,8 @@ void PCMToolWindow::Render()
             if (ImGui::DragInt(start_point_id.c_str(), &m_start_point, 1.0f, 0, m_end_point - 1)) selection_changed = true;
             if (ImGui::DragInt(end_point_id.c_str(), &m_end_point, 1.0f, m_start_point + 1, max_sample)) selection_changed = true;
 
-            bool is_playing = (m_preview_stream && !m_preview_stream->get_finished());
             if (selection_changed && is_playing) {
                 StartPreview();
-            }
-            
-            ImGui::Checkbox("Loop Preview", &m_preview_loop);
-            ImGui::SameLine();
-            
-            if (ImGui::Button(is_playing ? "Stop Preview" : "Preview"))
-            {
-                if (is_playing)
-                    StopPreview();
-                else
-                    StartPreview();
             }
 
             ImGui::Separator();

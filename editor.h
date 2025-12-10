@@ -40,6 +40,7 @@ private:
     bool m_showThemeWindow;
     bool m_themeRequestFocus;
     int m_themeSelection; // 0=Dark,1=Light,2=Classic
+    std::string m_userConfigPath;
     
     // File dialogs
     bool m_showOpenDialog;
@@ -61,6 +62,8 @@ private:
     void RenderMDSBinExportWindow();
     void RenderThemeWindow();
     void RenderPCMToolWindow();
+    void LoadUserConfig();
+    void SaveUserConfig();
     bool CheckUnsavedChanges();
     void UpdateBuffer();
     void PlayMML();
