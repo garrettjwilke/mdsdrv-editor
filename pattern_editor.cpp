@@ -17,6 +17,7 @@ PatternEditor::PatternEditor()
     , m_request_focus(false)
 {
     m_pattern.resize(m_pattern_length, -1); // Initialize with rests
+    m_octave_changes.resize(m_pattern_length, 0); // Initialize with no octave changes
     m_mml_buffer.resize(4096, 0); // Allocate buffer for MML output
     UpdateMML();
 }
@@ -26,16 +27,36 @@ PatternEditor::~PatternEditor() {
 
 void PatternEditor::UpdateMML() {
     std::ostringstream oss;
-    bool first = true;
     
+    // Output the default note length command
+    oss << "l" << m_note_length;
+    
+    // Output all notes/rests without length suffixes
     for (int i = 0; i < m_pattern_length; ++i) {
+        oss << " ";
+        
+        // Output octave change if any
+        int octave_change = m_octave_changes[i];
+        if (octave_change == -1) {
+            oss << "<";
+        } else if (octave_change == 1) {
+            oss << ">";
+        }
+        
         int note = m_pattern[i];
-        if (note >= 0 && note < NOTE_COUNT) {
-            if (!first) {
-                oss << " ";
-            }
-            oss << NoteToMML(note, m_note_length);
-            first = false;
+        if (note == -2) {
+            // Output a tie
+            oss << "^";
+        } else if (note >= 0 && note < NOTE_COUNT) {
+            // Output just the note name (lowercase)
+            const char* note_chars[] = {
+                "c", "c#", "d", "d#", "e", "f",
+                "f#", "g", "g#", "a", "a#", "b"
+            };
+            oss << note_chars[note];
+        } else {
+            // Output a rest
+            oss << "r";
         }
     }
     
@@ -84,6 +105,7 @@ void PatternEditor::Render() {
         if (ImGui::InputInt("##PatternLength", &m_pattern_length, 1, 1)) {
             m_pattern_length = std::max(1, std::min(64, m_pattern_length));
             m_pattern.resize(m_pattern_length, -1);
+            m_octave_changes.resize(m_pattern_length, 0);
             UpdateMML();
         }
         
@@ -112,18 +134,19 @@ void PatternEditor::Render() {
         
         float button_width = 40.0f;
         float button_height = 30.0f;
-        float available_width = ImGui::GetContentRegionAvail().x;
-        int buttons_per_row = (int)(available_width / (button_width + ImGui::GetStyle().ItemSpacing.x));
-        if (buttons_per_row < 1) buttons_per_row = 1;
+        const int buttons_per_row = 8; // Group buttons in rows of 8
         
         for (int i = 0; i < m_pattern_length; ++i) {
+            // Start a new row every 8 buttons
             if (i > 0 && (i % buttons_per_row) != 0) {
                 ImGui::SameLine();
             }
             
             int note = m_pattern[i];
             std::string button_label;
-            if (note < 0) {
+            if (note == -2) {
+                button_label = "^";
+            } else if (note < 0) {
                 button_label = "R";
             } else if (note < NOTE_COUNT) {
                 button_label = NOTE_NAMES[note];
@@ -134,18 +157,34 @@ void PatternEditor::Render() {
             std::string button_id = "##Step" + std::to_string(i);
             std::string popup_id = "NotePopup" + std::to_string(i);
             
-            // Style the button based on whether it's a rest or a note
-            if (note < 0) {
+            // Style the button based on whether it's a rest, tie, or a note
+            if (note == -2) {
+                // Tie - use a different color (blue-ish)
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.6f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.5f, 0.7f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.3f, 0.5f, 1.0f));
+            } else if (note < 0) {
+                // Rest - gray
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
             } else {
+                // Note - green
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.3f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 0.4f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.5f, 0.2f, 1.0f));
             }
             
-            if (ImGui::Button((button_label + button_id).c_str(), ImVec2(button_width, button_height))) {
+            // Add octave indicator to button label if present
+            int octave_change = m_octave_changes[i];
+            std::string display_label = button_label;
+            if (octave_change == -1) {
+                display_label = "<" + display_label;
+            } else if (octave_change == 1) {
+                display_label = ">" + display_label;
+            }
+            
+            if (ImGui::Button((display_label + button_id).c_str(), ImVec2(button_width, button_height))) {
                 ImGui::OpenPopup(popup_id.c_str());
             }
             
@@ -154,13 +193,24 @@ void PatternEditor::Render() {
             // Popup menu for note selection
             if (ImGui::BeginPopup(popup_id.c_str())) {
                 // Rest option
-                bool is_rest = (note < 0);
+                bool is_rest = (note == -1);
                 if (ImGui::Selectable("Rest", is_rest)) {
                     m_pattern[i] = -1;
                     UpdateMML();
                     ImGui::CloseCurrentPopup();
                 }
                 if (is_rest) {
+                    ImGui::SetItemDefaultFocus();
+                }
+                
+                // Tie option
+                bool is_tie = (note == -2);
+                if (ImGui::Selectable("Tie (^)", is_tie)) {
+                    m_pattern[i] = -2;
+                    UpdateMML();
+                    ImGui::CloseCurrentPopup();
+                }
+                if (is_tie) {
                     ImGui::SetItemDefaultFocus();
                 }
                 
@@ -180,16 +230,46 @@ void PatternEditor::Render() {
                     }
                 }
                 
+                ImGui::Separator();
+                
+                // Octave change options
+                ImGui::Text("Octave:");
+                bool octave_lower = (octave_change == -1);
+                bool octave_none = (octave_change == 0);
+                bool octave_raise = (octave_change == 1);
+                
+                if (ImGui::Selectable("Lower (<)", octave_lower)) {
+                    m_octave_changes[i] = -1;
+                    UpdateMML();
+                }
+                if (ImGui::Selectable("None", octave_none)) {
+                    m_octave_changes[i] = 0;
+                    UpdateMML();
+                }
+                if (ImGui::Selectable("Raise (>)", octave_raise)) {
+                    m_octave_changes[i] = 1;
+                    UpdateMML();
+                }
+                
                 ImGui::EndPopup();
             }
             
             // Show step number and current note as tooltip
             if (ImGui::IsItemHovered()) {
-                if (note < 0) {
-                    ImGui::SetTooltip("Step %d: Rest", i + 1);
-                } else {
-                    ImGui::SetTooltip("Step %d: %s", i + 1, NOTE_NAMES[note]);
+                std::string tooltip = "Step " + std::to_string(i + 1) + ": ";
+                if (octave_change == -1) {
+                    tooltip += "< ";
+                } else if (octave_change == 1) {
+                    tooltip += "> ";
                 }
+                if (note == -2) {
+                    tooltip += "Tie (^)";
+                } else if (note < 0) {
+                    tooltip += "Rest";
+                } else {
+                    tooltip += NOTE_NAMES[note];
+                }
+                ImGui::SetTooltip("%s", tooltip.c_str());
             }
         }
         
@@ -202,7 +282,13 @@ void PatternEditor::Render() {
         ImGui::InputTextMultiline("##MMLOutput", m_mml_buffer.data(), 
                                   m_mml_buffer.size(), 
                                   ImVec2(-1, 100), 
-                                  ImGuiInputTextFlags_ReadOnly);
+                                  ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_NoUndoRedo);
+        
+        // Add a copy button for convenience
+        ImGui::SameLine();
+        if (ImGui::Button("Copy")) {
+            ImGui::SetClipboardText(m_mml_output.c_str());
+        }
         
         // Help text
         ImGui::Separator();

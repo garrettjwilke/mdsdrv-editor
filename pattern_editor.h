@@ -19,7 +19,8 @@ private:
     
     int m_pattern_length;  // Number of steps in the pattern
     int m_note_length;      // Note length (1, 2, 4, 8, 16, 32)
-    std::vector<int> m_pattern;  // Pattern data: -1 = rest, 0-11 = C to B
+    std::vector<int> m_pattern;  // Pattern data: -2 = tie, -1 = rest, 0-11 = C to B
+    std::vector<int> m_octave_changes;  // Octave changes: -1 = lower (<), 0 = none, 1 = raise (>)
     
     std::string m_mml_output;
     std::vector<char> m_mml_buffer;
