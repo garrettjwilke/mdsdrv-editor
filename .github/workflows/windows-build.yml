@@ -1,14 +1,14 @@
 name: Windows Manual Build
 
 on:
-  workflow_dispatch:    # ← manual trigger only
+  workflow_dispatch:
 
 jobs:
   build-windows:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repo (no submodules!)
+      - name: Checkout (no submodules)
         uses: actions/checkout@v4
         with:
           submodules: false
@@ -16,30 +16,44 @@ jobs:
       - name: Install CMake + Ninja
         uses: lukka/get-cmake@latest
 
-      - name: Build + Install GLFW (for find_package)
+      # -------------------------
+      # Build GLFW (MSVC)
+      # -------------------------
+      - name: Build and install GLFW
         shell: pwsh
         run: |
           git clone https://github.com/glfw/glfw.git --depth 1
           cd glfw
-          cmake -B build -S . -G Ninja -DGLFW_BUILD_DOCS=OFF -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF
+          cmake -B build -S . -G "Ninja Multi-Config" `
+            -DGLFW_BUILD_DOCS=OFF `
+            -DGLFW_BUILD_TESTS=OFF `
+            -DGLFW_BUILD_EXAMPLES=OFF
           cmake --build build --config Release
-          cmake --install build --prefix "C:/glfw"
+          cmake --install build --config Release --prefix "C:/glfw"
 
-      - name: Configure CMake (your CMake handles submodules)
+      # -------------------------
+      # Configure (MSVC)
+      # -------------------------
+      - name: Configure CMake
         shell: pwsh
         run: |
           cmake -S . -B build `
-            -G Ninja `
+            -G "Ninja Multi-Config" `
             -DCMAKE_BUILD_TYPE=Release `
             -Dglfw3_DIR="C:/glfw/lib/cmake/glfw3"
 
+      # -------------------------
+      # Build (MSVC)
+      # -------------------------
       - name: Build
         shell: pwsh
         run: cmake --build build --config Release
 
+      # -------------------------
+      # Upload
+      # -------------------------
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
           name: mdsdrv-editor-windows
-          path: build/mdsdrv-editor.exe
-
+          path: build/Release/mdsdrv-editor.exe
