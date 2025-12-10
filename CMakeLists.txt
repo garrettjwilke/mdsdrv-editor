@@ -4,6 +4,32 @@ project(mdsdrv-editor)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+message(STATUS "Initializing nested mmlgui submodules…")
+
+execute_process(COMMAND git submodule init MDSDRV
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+
+execute_process(COMMAND git submodule update MDSDRV
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+
+execute_process(COMMAND git submodule init ctrmml
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+
+execute_process(COMMAND git submodule update ctrmml
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+
+execute_process(COMMAND git submodule init imgui
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+
+execute_process(COMMAND git submodule update imgui
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+
+execute_process(COMMAND git submodule init libvgm
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+
+execute_process(COMMAND git submodule update libvgm
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+
 # Check if building for WebAssembly
 if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten" OR EMSCRIPTEN)
     set(IS_WASM_BUILD TRUE)
