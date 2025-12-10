@@ -1,1 +1,14 @@
-*test/
+build/
+cmake-build-*/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+mdsdrv-editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
