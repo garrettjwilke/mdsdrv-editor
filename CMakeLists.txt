@@ -283,16 +283,17 @@ else()
     endif()
 endif()
 
+# Apply MinGW workaround: include <cstdint> for all C++ files only
 if(MINGW)
-    # Only apply to C++ sources
-    set_source_files_properties(
-        ${CTRMML_SOURCES}
-        ${MMLGUI_SOURCES}
-        ${IMGUI_SOURCES}
-        ${IMGUI_FILESYSTEM_SOURCES}
-        ${SOURCES}
-        PROPERTIES COMPILE_OPTIONS "-include;cstdint"
-    )
+    # Collect all C++ sources from your target
+    get_target_property(PROJECT_SOURCES ${PROJECT_NAME} SOURCES)
+
+    foreach(src ${PROJECT_SOURCES})
+        get_filename_component(ext ${src} EXT)
+        if(ext STREQUAL ".cpp")
+            set_source_files_properties(${src} PROPERTIES COMPILE_OPTIONS "-include;cstdint")
+        endif()
+    endforeach()
 endif()
 
 # Define LOCAL_LIBVGM to use local libvgm headers
