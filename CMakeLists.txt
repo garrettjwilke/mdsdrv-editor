@@ -4,31 +4,39 @@ project(mdsdrv-editor)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+message(STATUS "Initializing top-level submodules…")
+
+execute_process(
+    COMMAND git submodule update --init deps/imgui
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+execute_process(
+    COMMAND git submodule update --init deps/mmlgui
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 message(STATUS "Initializing nested mmlgui submodules…")
 
-execute_process(COMMAND git submodule init MDSDRV
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+execute_process(
+    COMMAND sh -c "cd deps/mmlgui && git submodule update --init MDSDRV"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
 
-execute_process(COMMAND git submodule update MDSDRV
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+execute_process(
+    COMMAND sh -c "cd deps/mmlgui && git submodule update --init ctrmml"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
 
-execute_process(COMMAND git submodule init ctrmml
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+execute_process(
+    COMMAND sh -c "cd deps/mmlgui && git submodule update --init imgui"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
 
-execute_process(COMMAND git submodule update ctrmml
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
-
-execute_process(COMMAND git submodule init imgui
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
-
-execute_process(COMMAND git submodule update imgui
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
-
-execute_process(COMMAND git submodule init libvgm
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
-
-execute_process(COMMAND git submodule update libvgm
-                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/mmlgui)
+execute_process(
+    COMMAND sh -c "cd deps/mmlgui && git submodule update --init libvgm"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
 
 # Check if building for WebAssembly
 if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten" OR EMSCRIPTEN)
