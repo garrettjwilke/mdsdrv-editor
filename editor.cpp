@@ -825,8 +825,34 @@ void Editor::RenderHighlights()
     // Get draw list
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     
-    // Highlight color (yellow with transparency)
-    ImU32 highlight_color = IM_COL32(255, 255, 0, 120); // Yellow, semi-transparent
+    // Get theme-aware highlight color
+    // Use colors that complement each theme and provide good visibility
+    ImU32 highlight_color;
+    switch (m_themeSelection) {
+        case 0: // Dark theme - use bright, warm color
+            highlight_color = IM_COL32(255, 200, 50, 140); // Bright yellow-orange, visible on dark
+            break;
+        case 1: // Light theme - use darker, more saturated color
+            highlight_color = IM_COL32(255, 160, 0, 160); // Darker orange-yellow, visible on light
+            break;
+        case 2: // Classic theme - use classic yellow
+            highlight_color = IM_COL32(255, 255, 0, 120); // Classic yellow
+            break;
+        default:
+            // Fallback: use a theme-adaptive color based on ImGui's current style
+            {
+                // Use HeaderHovered color which adapts to theme, but make it more visible
+                ImVec4 header_hovered = ImGui::GetStyle().Colors[ImGuiCol_HeaderHovered];
+                // Blend with a warm tone for better visibility
+                highlight_color = IM_COL32(
+                    (int)((header_hovered.x * 0.7f + 1.0f * 0.3f) * 255), // Add some red
+                    (int)((header_hovered.y * 0.7f + 0.8f * 0.3f) * 255), // Add some green
+                    (int)((header_hovered.z * 0.7f + 0.2f * 0.3f) * 255), // Add some blue
+                    (int)(header_hovered.w * 255 * 0.9f)
+                );
+            }
+            break;
+    }
     
     // Get font size for line height calculation
     float line_height = ImGui::GetTextLineHeight();
