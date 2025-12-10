@@ -159,49 +159,22 @@ void Editor::RenderTextEditor() {
                  ImGuiWindowFlags_NoMove |
                  ImGuiWindowFlags_NoResize);
     
-    // Get available space
     ImGuiIO& io = ImGui::GetIO();
     
     // Adjust for menu bar
     float menuBarHeight = ImGui::GetFrameHeight();
     ImGui::SetWindowPos(ImVec2(0, menuBarHeight));
     ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, io.DisplaySize.y - menuBarHeight - 20));
-    
-    // Play and Stop buttons at the top of the editor area
-    if (ImGui::Button("Play", ImVec2(70, 20))) {
-        PlayMML();
-    }
-    
-    ImGui::SameLine();
-    
-    if (ImGui::Button("Stop", ImVec2(70, 20))) {
-        StopMML();
-    }
-    
-    ImGui::SameLine();
-    
-    // Show compile status
-    if (m_songManager) {
-        Song_Manager::Compile_Result compileResult = m_songManager->get_compile_result();
-        bool compileInProgress = m_songManager->get_compile_in_progress();
-        
-        if (compileInProgress) {
-            ImGui::Text("Compiling...");
-        } else if (compileResult == Song_Manager::COMPILE_ERROR) {
-            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Compile Error: %s", 
-                              m_songManager->get_error_message().c_str());
-        } else if (compileResult == Song_Manager::COMPILE_OK) {
-            ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Compile OK");
-        }
-    }
-    
-    ImGui::SameLine();
-    ImGui::Checkbox("Debug", &m_debug);
-    
-    ImGui::Separator();
-    
-    // Text input
-    ImVec2 textSize = ImVec2(-1.0f, -1.0f);
+
+    // Reserve space at the bottom for controls and padding
+    const float buttonBarHeight = 32.0f;
+    const float verticalPadding = 12.0f;
+    const float horizontalPadding = 12.0f;
+
+    // Text input sized to leave room for the bottom bar
+    ImVec2 available = ImGui::GetContentRegionAvail();
+    float textHeight = std::max(100.0f, available.y - buttonBarHeight - (verticalPadding * 2));
+    ImVec2 textSize = ImVec2(-1.0f, textHeight);
     ImGuiInputTextFlags flags = ImGuiInputTextFlags_AllowTabInput | 
                                 ImGuiInputTextFlags_NoHorizontalScroll;
     
@@ -217,7 +190,56 @@ void Editor::RenderTextEditor() {
         m_text = std::string(m_textBuffer.data());
         m_unsavedChanges = true;
     }
+
+    // Bottom control bar with padding to keep it prominent
+    ImGui::Dummy(ImVec2(0.0f, verticalPadding));
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + horizontalPadding);
+
+    // Left side: compile status (if available)
+    if (m_songManager) {
+        Song_Manager::Compile_Result compileResult = m_songManager->get_compile_result();
+        bool compileInProgress = m_songManager->get_compile_in_progress();
+        
+        if (compileInProgress) {
+            ImGui::Text("Compiling...");
+        } else if (compileResult == Song_Manager::COMPILE_ERROR) {
+            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Compile Error: %s", 
+                              m_songManager->get_error_message().c_str());
+        } else if (compileResult == Song_Manager::COMPILE_OK) {
+            ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Compile OK");
+        } else {
+            ImGui::TextUnformatted("");
+        }
+    } else {
+        ImGui::TextUnformatted("");
+    }
+
+    // Right-aligned control cluster: Debug, Play, Stop
+    ImGui::SameLine();
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const float spacing = style.ItemSpacing.x;
+    const float buttonWidth = 80.0f;
+    const float buttonHeight = 26.0f;
+    float debugWidth = ImGui::GetFrameHeight() + style.ItemInnerSpacing.x + ImGui::CalcTextSize("Debug").x;
+    float clusterWidth = debugWidth + spacing + buttonWidth + spacing + buttonWidth;
+
+    float startX = ImGui::GetCursorPosX();
+    float fullWidth = ImGui::GetContentRegionAvail().x;
+    float targetX = startX + std::max(0.0f, fullWidth - clusterWidth - horizontalPadding);
+    ImGui::SetCursorPosX(targetX);
+
+    ImGui::Checkbox("Debug", &m_debug);
+    ImGui::SameLine();
+    if (ImGui::Button("Play", ImVec2(buttonWidth, buttonHeight))) {
+        PlayMML();
+    }
     
+    ImGui::SameLine();
+    
+    if (ImGui::Button("Stop", ImVec2(buttonWidth, buttonHeight))) {
+        StopMML();
+    }
+
     ImGui::End();
 }
 
