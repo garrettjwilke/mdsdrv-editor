@@ -172,6 +172,25 @@ set(LIBVGM_AUDIO_SOURCES
     ${LIBVGM_DIR}/audio/AudioStream.c
 )
 
+# Force C99 for libvgm C files
+set_source_files_properties(
+    deps/mmlgui/libvgm/audio/AudioStream.c
+    deps/mmlgui/libvgm/emu/SoundEmu.c
+    deps/mmlgui/libvgm/emu/Resampler.c
+    deps/mmlgui/libvgm/emu/logging.c
+    deps/mmlgui/libvgm/emu/panning.c
+    deps/mmlgui/libvgm/emu/dac_control.c
+    deps/mmlgui/libvgm/emu/cores/sn764intf.c
+    deps/mmlgui/libvgm/emu/cores/sn76496.c
+    deps/mmlgui/libvgm/emu/cores/2612intf.c
+    deps/mmlgui/libvgm/emu/cores/fmopn.c
+    PROPERTIES
+    LANGUAGE C
+    C_STANDARD 99
+    C_STANDARD_REQUIRED ON
+)
+
+
 # Add platform-specific audio driver (CoreAudio for macOS)
 if(APPLE AND NOT IS_WASM_BUILD)
     set(LIBVGM_AUDIO_SOURCES ${LIBVGM_AUDIO_SOURCES}
