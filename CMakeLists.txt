@@ -46,6 +46,7 @@ set(SOURCES
     window.cpp
     editor.cpp
     theme.cpp
+    config.cpp
     export_window.cpp
     mdsbin_export_window.cpp
     mdsdrv_bin.cpp
@@ -56,6 +57,7 @@ set(HEADERS
     window.h
     editor.h
     theme.h
+    config.h
     export_window.h
     mdsbin_export_window.h
     mdsdrv_bin.h

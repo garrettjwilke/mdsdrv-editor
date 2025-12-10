@@ -1,6 +1,7 @@
 #include "window.h"
 #include "editor.h"
 #include "theme.h"
+#include "config.h"
 #include "deps/mmlgui/src/audio_manager.h"
 #include <iostream>
 
@@ -34,8 +35,10 @@ int main() {
     std::cout << "[Main] Audio driver: " << audioManager.get_driver() << std::endl;
     std::cout << "[Main] Audio device: " << audioManager.get_device() << std::endl;
     
+    UserConfig userConfig = LoadUserConfig();
+
     Window window;
-    if (!window.Initialize(1280, 720, "MDSDRV Editor")) {
+    if (!window.Initialize(userConfig.windowWidth, userConfig.windowHeight, "MDSDRV Editor")) {
         return -1;
     }
     

@@ -15,6 +15,7 @@
 #include "pcm_tool_window.h"
 #include "mdsbin_export_window.h"
 #include "theme.h"
+#include "config.h"
 
 Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false),
@@ -30,8 +31,9 @@ Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
     // Apply initial theme (higher-contrast dark)
     Theme::ApplyLight();
 
-    // Load user config (theme selection)
-    LoadUserConfig();
+    // Load user config (theme selection and window state)
+    UserConfig userConfig = LoadUserConfig();
+    m_themeSelection = userConfig.theme;
     switch (m_themeSelection) {
         case 0: Theme::ApplyDark(); break;
         case 1: Theme::ApplyLight(); break;
@@ -484,7 +486,10 @@ void Editor::RenderThemeWindow() {
                 case 2: Theme::ApplyClassic(); break;
                 default: Theme::ApplyDark(); break;
             }
-            SaveUserConfig();
+            // Persist the updated theme without losing window dimensions
+            UserConfig cfg = LoadUserConfig();
+            cfg.theme = m_themeSelection;
+            SaveUserConfig(cfg);
         }
 
         ImGui::Separator();
@@ -509,48 +514,6 @@ void Editor::RenderPCMToolWindow() {
         } else {
             it = m_pcmToolWindows.erase(it);
         }
-    }
-}
-
-void Editor::LoadUserConfig() {
-    try {
-        const char* home = std::getenv("HOME");
-        std::filesystem::path cfgDir = home ? std::filesystem::path(home) / ".config" / "mdsdrv-editor"
-                                            : std::filesystem::temp_directory_path() / "mdsdrv-editor";
-        std::filesystem::create_directories(cfgDir);
-        m_userConfigPath = (cfgDir / "config.ini").string();
-
-        std::ifstream in(m_userConfigPath);
-        if (!in.is_open()) return;
-        std::string line;
-        while (std::getline(in, line)) {
-            if (line.rfind("theme=", 0) == 0) {
-                int val = std::stoi(line.substr(6));
-                if (val >= 0 && val <= 2) {
-                    m_themeSelection = val;
-                }
-            }
-        }
-    } catch (...) {
-        // Ignore config load errors
-    }
-}
-
-void Editor::SaveUserConfig() {
-    if (m_userConfigPath.empty()) {
-        // Try to establish path if not already done
-        const char* home = std::getenv("HOME");
-        std::filesystem::path cfgDir = home ? std::filesystem::path(home) / ".config" / "mdsdrv-editor"
-                                            : std::filesystem::temp_directory_path() / "mdsdrv-editor";
-        std::filesystem::create_directories(cfgDir);
-        m_userConfigPath = (cfgDir / "config.ini").string();
-    }
-    try {
-        std::ofstream out(m_userConfigPath, std::ios::trunc);
-        if (!out.is_open()) return;
-        out << "theme=" << m_themeSelection << "\n";
-    } catch (...) {
-        // Ignore save errors
     }
 }
 

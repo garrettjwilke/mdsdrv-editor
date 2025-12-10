@@ -5,6 +5,8 @@
 #include <imgui_impl_opengl3.h>
 #include <iostream>
 #include <filesystem>
+#include <cstdlib>
+#include "config.h"
 
 Window::Window() : m_window(nullptr), m_width(0), m_height(0) {
 }
@@ -38,6 +40,20 @@ bool Window::Initialize(int width, int height, const std::string& title) {
         glfwTerminate();
         return false;
     }
+
+    glfwSetWindowUserPointer(m_window, this);
+    glfwSetWindowSizeCallback(m_window, [](GLFWwindow* window, int w, int h) {
+        auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+        if (!self) return;
+        self->m_width = w;
+        self->m_height = h;
+
+        // Persist the latest window dimensions while preserving other config fields
+        UserConfig cfg = LoadUserConfig();
+        cfg.windowWidth = w;
+        cfg.windowHeight = h;
+        SaveUserConfig(cfg);
+    });
 
     glfwMakeContextCurrent(m_window);
     glfwSwapInterval(1); // Enable vsync
