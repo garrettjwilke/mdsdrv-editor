@@ -85,6 +85,7 @@ set(SOURCES
     mdsbin_export_window.cpp
     mdsdrv_bin.cpp
     pcm_tool_window.cpp
+    pattern_editor.cpp
 )
 
 set(HEADERS
@@ -96,6 +97,7 @@ set(HEADERS
     mdsbin_export_window.h
     mdsdrv_bin.h
     pcm_tool_window.h
+    pattern_editor.h
 )
 
 # ImGui sources - common files

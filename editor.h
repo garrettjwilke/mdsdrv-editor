@@ -14,6 +14,7 @@ class Song_Manager;
 class ExportWindow;
 class PCMToolWindow;
 class MDSBinExportWindow;
+class PatternEditor;
 class Song;
 
 class Editor {
@@ -38,6 +39,7 @@ private:
     std::unique_ptr<ExportWindow> m_exportWindow;
     std::unique_ptr<PCMToolWindow> m_pcmToolWindow;
     std::unique_ptr<MDSBinExportWindow> m_mdsBinExportWindow;
+    std::unique_ptr<PatternEditor> m_patternEditor;
     std::list<std::shared_ptr<PCMToolWindow>> m_pcmToolWindows;
     bool m_isPlaying;
     bool m_debug;
@@ -69,6 +71,7 @@ private:
     void RenderMDSBinExportWindow();
     void RenderThemeWindow();
     void RenderPCMToolWindow();
+    void RenderPatternEditor();
     bool CheckUnsavedChanges();
     void UpdateBuffer();
     void PlayMML();

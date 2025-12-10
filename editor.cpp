@@ -14,6 +14,7 @@
 #include "export_window.h"
 #include "pcm_tool_window.h"
 #include "mdsbin_export_window.h"
+#include "pattern_editor.h"
 #include "theme.h"
 #include "config.h"
 #include "core.h"
@@ -38,6 +39,7 @@ Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
     m_exportWindow = std::make_unique<ExportWindow>();
     m_pcmToolWindow = std::make_unique<PCMToolWindow>();
     m_mdsBinExportWindow = std::make_unique<MDSBinExportWindow>();
+    m_patternEditor = std::make_unique<PatternEditor>();
     
     // Apply initial theme (higher-contrast dark)
     Theme::ApplyLight();
@@ -76,6 +78,7 @@ void Editor::Render() {
     RenderMDSBinExportWindow();
     RenderThemeWindow();
     RenderPCMToolWindow();
+    RenderPatternEditor();
 }
 
 void Editor::RenderMenuBar() {
@@ -153,6 +156,11 @@ void Editor::RenderMenuBar() {
                     if (window) {
                         window->SetOpen(true);
                     }
+                }
+            }
+            if (ImGui::MenuItem("Pattern Editor...")) {
+                if (m_patternEditor) {
+                    m_patternEditor->SetOpen(true);
                 }
             }
             ImGui::EndMenu();
@@ -562,6 +570,12 @@ void Editor::RenderPCMToolWindow() {
         } else {
             it = m_pcmToolWindows.erase(it);
         }
+    }
+}
+
+void Editor::RenderPatternEditor() {
+    if (m_patternEditor) {
+        m_patternEditor->Render();
     }
 }
 
