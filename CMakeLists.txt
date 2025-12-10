@@ -156,14 +156,19 @@ file(GLOB CTRMML_PLATFORM_SOURCES
     "${MMLGUI_DIR}/ctrmml/src/platform/mdsdrv.cpp"
 )
 
-# LibVGM utils sources - needed for OSMutex
+# LibVGM utils sources - needed for OSMutex, OSSignal, and OSThread
+# PulseAudio and ALSA drivers require OSSignal and OSThread
 if(APPLE OR UNIX)
     set(LIBVGM_UTILS_SOURCES
         ${LIBVGM_DIR}/utils/OSMutex_POSIX.c
+        ${LIBVGM_DIR}/utils/OSSignal_POSIX.c
+        ${LIBVGM_DIR}/utils/OSThread_POSIX.c
     )
 elseif(WIN32)
     set(LIBVGM_UTILS_SOURCES
         ${LIBVGM_DIR}/utils/OSMutex_Win.c
+        ${LIBVGM_DIR}/utils/OSSignal_Win.c
+        ${LIBVGM_DIR}/utils/OSThread_Win.c
     )
 endif()
 
@@ -191,7 +196,7 @@ set_source_files_properties(
 )
 
 
-# Add platform-specific audio driver (CoreAudio for macOS)
+# Add platform-specific audio driver (CoreAudio for macOS, ALSA/PulseAudio for Linux)
 if(APPLE AND NOT IS_WASM_BUILD)
     set(LIBVGM_AUDIO_SOURCES ${LIBVGM_AUDIO_SOURCES}
         ${LIBVGM_DIR}/audio/AudDrv_CoreAudio.c
@@ -200,7 +205,61 @@ if(APPLE AND NOT IS_WASM_BUILD)
 elseif(WIN32)
     # Windows drivers would go here
 elseif(UNIX AND NOT APPLE)
-    # Linux drivers would go here
+    # Linux drivers - try PulseAudio first, then ALSA
+    set(LINUX_AUDIO_LIBS "")  # Initialize to empty
+    find_package(PkgConfig QUIET)
+    
+    # Try to find PulseAudio using pkg-config (more reliable on Linux)
+    set(PULSEAUDIO_FOUND FALSE)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(PULSEAUDIO QUIET libpulse-simple)
+        if(PULSEAUDIO_FOUND)
+            # Also need the main pulse library
+            pkg_check_modules(PULSE QUIET libpulse)
+        endif()
+    endif()
+    
+    # Fallback to CMake's FindPulseAudio if pkg-config didn't work
+    if(NOT PULSEAUDIO_FOUND)
+        find_package(PulseAudio QUIET)
+    endif()
+    
+    find_package(ALSA QUIET)
+    
+    # Prefer PulseAudio if available, otherwise use ALSA
+    if(PULSEAUDIO_FOUND)
+        set(LIBVGM_AUDIO_SOURCES ${LIBVGM_AUDIO_SOURCES}
+            ${LIBVGM_DIR}/audio/AudDrv_Pulse.c
+        )
+        add_definitions(-DAUDDRV_PULSE)
+        if(PULSEAUDIO_INCLUDE_DIRS)
+            include_directories(${PULSEAUDIO_INCLUDE_DIRS})
+        elseif(PULSEAUDIO_INCLUDE_DIR)
+            include_directories(${PULSEAUDIO_INCLUDE_DIR})
+        endif()
+        # PulseAudio needs both pulse-simple and the main library
+        if(PULSEAUDIO_LIBRARIES)
+            set(LINUX_AUDIO_LIBS ${PULSEAUDIO_LIBRARIES})
+            if(PULSE_LIBRARIES)
+                list(APPEND LINUX_AUDIO_LIBS ${PULSE_LIBRARIES})
+            endif()
+        elseif(PULSEAUDIO_LIBRARY)
+            set(LINUX_AUDIO_LIBS pulse-simple ${PULSEAUDIO_LIBRARY})
+        else()
+            set(LINUX_AUDIO_LIBS pulse-simple pulse)
+        endif()
+    elseif(ALSA_FOUND)
+        set(LIBVGM_AUDIO_SOURCES ${LIBVGM_AUDIO_SOURCES}
+            ${LIBVGM_DIR}/audio/AudDrv_ALSA.c
+        )
+        add_definitions(-DAUDDRV_ALSA)
+        include_directories(${ALSA_INCLUDE_DIRS})
+        set(LINUX_AUDIO_LIBS ${ALSA_LIBRARIES})
+    else()
+        message(WARNING "No audio drivers found for Linux. Please install ALSA or PulseAudio development packages.")
+        message(WARNING "  For PulseAudio: sudo apt-get install libpulse-dev (Debian/Ubuntu)")
+        message(WARNING "  For ALSA: sudo apt-get install libasound2-dev (Debian/Ubuntu)")
+    endif()
 endif()
 
 # LibVGM emu sources - minimal set needed for SN76496 and YM2612
@@ -298,6 +357,7 @@ else()
         target_link_libraries(${PROJECT_NAME} PRIVATE
             glfw
             OpenGL::GL
+            ${LINUX_AUDIO_LIBS}
         )
     endif()
 endif()

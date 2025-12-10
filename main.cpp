@@ -17,11 +17,11 @@ int main() {
     audioManager.set_sample_rate(44100);
     std::cout << "[Main] Audio_Manager initialized with sample rate: 44100" << std::endl;
     
-    // Set the audio driver (Core Audio for macOS, driver signature 0x24)
-    // Try to use the first available driver
+    // Set the audio driver - use the first available driver
+    // On macOS this will be Core Audio, on Linux it will be PulseAudio or ALSA
     const auto& driverList = audioManager.get_driver_list();
     if (!driverList.empty()) {
-        // Use the first driver (Core Audio on macOS)
+        // Use the first available driver
         int driverSig = driverList.begin()->first;  // Key is the signature
         std::string driverName = driverList.begin()->second.second;
         std::cout << "[Main] Setting audio driver: " << driverName 
@@ -43,7 +43,7 @@ int main() {
     }
     
     // Set window handle for audio manager (needed for some audio drivers)
-    // macOS CoreAudio doesn't need a window handle, but we set it anyway
+    // CoreAudio (macOS) and ALSA/PulseAudio (Linux) don't need a window handle
     #ifndef __EMSCRIPTEN__
     audioManager.set_window_handle(nullptr);
     #endif
