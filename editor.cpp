@@ -21,7 +21,7 @@ Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_showConfirmNewDialog(false), m_showConfirmOpenDialog(false),
                    m_pendingNewFile(false), m_pendingOpenFile(false),
                    m_showThemeWindow(false), m_themeRequestFocus(false), m_themeSelection(0) {
-    m_text = "// Welcome to MDSDRV Editor\n// Start typing...\n";
+    m_text = "@3 psg 15\n\nH @3 o3 l4 a b c d\n";
     m_songManager = std::make_unique<Song_Manager>();
     m_exportWindow = std::make_unique<ExportWindow>();
     m_pcmToolWindow = std::make_unique<PCMToolWindow>();
@@ -555,20 +555,13 @@ void Editor::SaveUserConfig() {
 }
 
 void Editor::DebugLog(const std::string& message) {
-    // Always log, but prefix with [DEBUG] if debug mode is on
-    if (m_debug) {
-        std::cout << "[Editor DEBUG] " << message << std::endl;
-    } else {
-        std::cout << "[Editor] " << message << std::endl;
-    }
+    if (!m_debug) return;
+    std::cout << "[Editor DEBUG] " << message << std::endl;
 }
 
 void Editor::PlayMML() {
-    // Always output when Play is pressed
-    std::cout << "[Editor] ====== PLAY BUTTON PRESSED ======" << std::endl;
-    
     if (!m_songManager) {
-        std::cout << "[Editor] ERROR: Song_Manager is null!" << std::endl;
+        DebugLog("ERROR: Song_Manager is null!");
         return;
     }
     
@@ -579,9 +572,8 @@ void Editor::PlayMML() {
     std::istringstream iss(m_text);
     std::string line;
     int lineCount = 0;
-    std::cout << "[Editor] First 5 lines of MML:" << std::endl;
     while (std::getline(iss, line) && lineCount < 5) {
-        std::cout << "[Editor]   " << lineCount << ": " << line << std::endl;
+        DebugLog("MML line " + std::to_string(lineCount) + ": " + line);
         lineCount++;
     }
     
@@ -591,10 +583,7 @@ void Editor::PlayMML() {
     // Compile the MML text
     std::string filename = m_filepath.empty() ? "untitled.mml" : m_filepath;
     DebugLog("Starting compilation with filename: " + filename);
-    std::cout << "[Editor] Calling compile()..." << std::endl;
-    
     int compileResult = m_songManager->compile(m_text, filename);
-    std::cout << "[Editor] compile() returned: " << compileResult << std::endl;
     
     if (compileResult != 0) {
         DebugLog("WARNING: compile() returned non-zero: " + std::to_string(compileResult));
@@ -605,14 +594,9 @@ void Editor::PlayMML() {
     // Wait for compilation to complete (with timeout)
     int timeout = 200; // Increased timeout
     int waitCount = 0;
-    std::cout << "[Editor] Waiting for compilation to complete..." << std::endl;
-    
     while (m_songManager->get_compile_in_progress() && timeout > 0) {
         --timeout;
         ++waitCount;
-        if (waitCount % 10 == 0) {
-            std::cout << "[Editor] Still compiling... (" << waitCount << " iterations)" << std::endl;
-        }
         // Small delay to allow compilation thread to work
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -623,52 +607,33 @@ void Editor::PlayMML() {
     
     // Check if compilation succeeded
     Song_Manager::Compile_Result result = m_songManager->get_compile_result();
-    std::cout << "[Editor] Compile result: " << result << " (0=OK, 1=ERROR, -1=NOT_DONE)" << std::endl;
     
     if (result == Song_Manager::COMPILE_OK) {
         DebugLog("Compilation successful! Starting playback...");
         
         // Check audio manager status
         Audio_Manager& am = Audio_Manager::get();
-        std::cout << "[Editor] Audio status:" << std::endl;
-        std::cout << "[Editor]   Enabled: " << (am.get_audio_enabled() ? "yes" : "no") << std::endl;
-        std::cout << "[Editor]   Driver: " << am.get_driver() << std::endl;
-        std::cout << "[Editor]   Device: " << am.get_device() << std::endl;
-        std::cout << "[Editor]   Volume: " << am.get_volume() << std::endl;
         
         // Check if we have a song
         auto song = m_songManager->get_song();
-        if (song) {
-            std::cout << "[Editor] Song object is valid" << std::endl;
-        } else {
-            std::cout << "[Editor] WARNING: Song object is null!" << std::endl;
-        }
         
         try {
-            std::cout << "[Editor] Calling play(0)..." << std::endl;
             m_songManager->play(0);
             m_isPlaying = true;
-            std::cout << "[Editor] Playback started successfully!" << std::endl;
             DebugLog("Playback started successfully");
         } catch (const std::exception& e) {
-            std::cout << "[Editor] ERROR: Exception during play(): " << e.what() << std::endl;
             DebugLog("ERROR: Exception during play(): " + std::string(e.what()));
             m_isPlaying = false;
         } catch (...) {
-            std::cout << "[Editor] ERROR: Unknown exception during play()" << std::endl;
             DebugLog("ERROR: Unknown exception during play()");
             m_isPlaying = false;
         }
     } else if (result == Song_Manager::COMPILE_ERROR) {
         std::string errorMsg = m_songManager->get_error_message();
-        std::cout << "[Editor] ERROR: Compilation failed: " << errorMsg << std::endl;
         DebugLog("ERROR: Compilation failed: " + errorMsg);
     } else if (result == Song_Manager::COMPILE_NOT_DONE) {
-        std::cout << "[Editor] WARNING: Compilation still in progress or not started" << std::endl;
         DebugLog("WARNING: Compilation still in progress or not started");
     }
-    
-    std::cout << "[Editor] ====== PLAY BUTTON HANDLING COMPLETE ======" << std::endl;
 }
 
 void Editor::StopMML() {
