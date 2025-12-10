@@ -29,10 +29,16 @@ private:
     bool m_isPlaying;
     bool m_debug;
     
+    // File dialogs
+    bool m_showOpenDialog;
+    bool m_showSaveDialog;
+    bool m_showSaveAsDialog;
+    
     void RenderMenuBar();
     void RenderTextEditor();
     void RenderStatusBar();
     void RenderPlaybackControls();
+    void RenderFileDialogs();
     void UpdateBuffer();
     void PlayMML();
     void StopMML();

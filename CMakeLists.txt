@@ -64,6 +64,11 @@ endif()
 
 set(IMGUI_SOURCES ${IMGUI_CORE_SOURCES} ${IMGUI_BACKEND_SOURCES})
 
+# ImGui file system addon (for file dialogs)
+set(IMGUI_FILESYSTEM_SOURCES
+    ${MMLGUI_DIR}/imgui/addons/imguifilesystem/imguifilesystem.cpp
+)
+
 # MMLGUI sources - core files needed for playback
 set(MMLGUI_SOURCES
     ${MMLGUI_DIR}/src/song_manager.cpp
@@ -143,7 +148,7 @@ add_definitions(-DSNDDEV_SELECT -DSNDDEV_SN76496 -DEC_SN76496_MAME -DSNDDEV_YM26
 # Create executable
 if(IS_WASM_BUILD)
     # WASM build - use .html extension so Emscripten generates HTML file with shell template
-    add_executable(${PROJECT_NAME}.html ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} ${MMLGUI_SOURCES} ${CTRMML_SOURCES} ${CTRMML_PLATFORM_SOURCES} ${LIBVGM_AUDIO_SOURCES} ${LIBVGM_EMU_SOURCES} ${LIBVGM_UTILS_SOURCES})
+    add_executable(${PROJECT_NAME}.html ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} ${IMGUI_FILESYSTEM_SOURCES} ${MMLGUI_SOURCES} ${CTRMML_SOURCES} ${CTRMML_PLATFORM_SOURCES} ${LIBVGM_AUDIO_SOURCES} ${LIBVGM_EMU_SOURCES} ${LIBVGM_UTILS_SOURCES})
     
     # Set the executable suffix to empty so we get .html output
     set_target_properties(${PROJECT_NAME}.html PROPERTIES
@@ -198,7 +203,7 @@ if(IS_WASM_BUILD)
     # Emscripten provides GLFW and OpenGL through its ports
 else()
     # Native build
-    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} ${MMLGUI_SOURCES} ${CTRMML_SOURCES} ${CTRMML_PLATFORM_SOURCES} ${LIBVGM_AUDIO_SOURCES} ${LIBVGM_EMU_SOURCES} ${LIBVGM_UTILS_SOURCES})
+    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} ${IMGUI_FILESYSTEM_SOURCES} ${MMLGUI_SOURCES} ${CTRMML_SOURCES} ${CTRMML_PLATFORM_SOURCES} ${LIBVGM_AUDIO_SOURCES} ${LIBVGM_EMU_SOURCES} ${LIBVGM_UTILS_SOURCES})
     
     # Find packages for native build
     find_package(glfw3 REQUIRED)
@@ -222,11 +227,15 @@ endif()
 # Define LOCAL_LIBVGM to use local libvgm headers
 add_definitions(-DLOCAL_LIBVGM)
 
+# Define IMGUI_DEFINE_MATH_OPERATORS for ImGui file system addon
+add_definitions(-DIMGUI_DEFINE_MATH_OPERATORS)
+
 # Include directories (common for both)
 if(IS_WASM_BUILD)
     target_include_directories(${PROJECT_NAME}.html PRIVATE
         ${IMGUI_DIR}
         ${IMGUI_DIR}/backends
+        ${MMLGUI_DIR}/imgui/addons/imguifilesystem
         ${MMLGUI_DIR}/src
         ${MMLGUI_DIR}/ctrmml/src
         ${LIBVGM_DIR}
@@ -239,6 +248,7 @@ else()
     target_include_directories(${PROJECT_NAME} PRIVATE
         ${IMGUI_DIR}
         ${IMGUI_DIR}/backends
+        ${MMLGUI_DIR}/imgui/addons/imguifilesystem
         ${MMLGUI_DIR}/src
         ${MMLGUI_DIR}/ctrmml/src
         ${LIBVGM_DIR}

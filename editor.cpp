@@ -8,8 +8,10 @@
 #include <chrono>
 #include "song_manager.h"
 #include "audio_manager.h"
+#include "imguifilesystem.h"
 
-Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false) {
+Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
+                   m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false) {
     m_text = "// Welcome to MDSDRV Editor\n// Start typing...\n";
     m_songManager = std::make_unique<Song_Manager>();
     UpdateBuffer();
@@ -24,6 +26,7 @@ void Editor::Render() {
     RenderPlaybackControls();
     RenderTextEditor();
     RenderStatusBar();
+    RenderFileDialogs();
 }
 
 void Editor::RenderMenuBar() {
@@ -33,16 +36,17 @@ void Editor::RenderMenuBar() {
                 NewFile();
             }
             if (ImGui::MenuItem("Open", "Ctrl+O")) {
-                // TODO: Implement file dialog
+                m_showOpenDialog = true;
             }
             if (ImGui::MenuItem("Save", "Ctrl+S")) {
                 if (!m_filepath.empty()) {
                     SaveFile(m_filepath);
+                } else {
+                    m_showSaveAsDialog = true;
                 }
-                // TODO: Implement save as dialog
             }
             if (ImGui::MenuItem("Save As...", "Ctrl+Shift+S")) {
-                // TODO: Implement file dialog
+                m_showSaveAsDialog = true;
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Exit")) {
@@ -176,6 +180,35 @@ void Editor::UpdateBuffer() {
     }
     std::copy(m_text.begin(), m_text.end(), m_textBuffer.begin());
     m_textBuffer[m_text.size()] = '\0';
+}
+
+void Editor::RenderFileDialogs() {
+    // Open file dialog
+    static ImGuiFs::Dialog openDialog;
+    if (m_showOpenDialog) {
+        const char* chosenPath = openDialog.chooseFileDialog(m_showOpenDialog, nullptr, ".mml;.txt;.*", "Open MML File");
+        if (strlen(chosenPath) > 0) {
+            OpenFile(chosenPath);
+            m_showOpenDialog = false;
+        } else if (!m_showOpenDialog) {
+            // Dialog was closed without selecting
+            m_showOpenDialog = false;
+        }
+    }
+    
+    // Save As dialog
+    static ImGuiFs::Dialog saveAsDialog;
+    if (m_showSaveAsDialog) {
+        const char* defaultName = m_filepath.empty() ? "untitled.mml" : m_filepath.c_str();
+        const char* chosenPath = saveAsDialog.saveFileDialog(m_showSaveAsDialog, nullptr, defaultName, ".mml;.txt;.*", "Save MML File");
+        if (strlen(chosenPath) > 0) {
+            SaveFile(chosenPath);
+            m_showSaveAsDialog = false;
+        } else if (!m_showSaveAsDialog) {
+            // Dialog was closed without selecting
+            m_showSaveAsDialog = false;
+        }
+    }
 }
 
 void Editor::RenderPlaybackControls() {
