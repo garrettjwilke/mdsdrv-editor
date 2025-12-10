@@ -1,55 +1,28 @@
 ## MDSDRV - Editor
 
-A basic text editor built with ImGui, featuring a modular architecture.
-
-### Project Structure
-
-- `main.cpp` - Minimal entry point
-- `window.h/cpp` - Window management and GLFW/ImGui initialization
-- `editor.h/cpp` - Text editor logic and UI
-- `theme.h/cpp` - Theme management (Dark, Light, Classic)
-
 ### Building
 
 #### Prerequisites
 
-- CMake 3.15 or higher
-- GLFW3
-- OpenGL 3.3+
-- ImGui (will be downloaded or placed in `deps/imgui`)
 
-#### Build Instructions
+#### Native Build Instructions
 
-1. Clone ImGui into `deps/imgui`:
-   ```bash
-   mkdir -p deps
-   cd deps
-   git clone https://github.com/ocornut/imgui.git
-   ```
+`git clone https://github.com/garrettjwilke/mdsdrv-editor && cd mdsdrv-editor`
 
-2. Create build directory:
-   ```bash
-   mkdir build
-   cd build
-   ```
+`git submodule update --init --recursive`
 
-3. Configure and build:
-   ```bash
-   cmake ..
-   make
-   ```
+`mkdir build && cd build`
 
-4. Run:
-   ```bash
-   ./mdsdrv-editor
-   ```
+`cmake .. && cmake --build .`
 
-### Features
+#### WebAssembly Build Instructions
 
-- Basic text editing with multiline support
-- File menu (New, Open, Save, Save As)
-- Edit menu (Cut, Copy, Paste, Undo, Redo)
-- Status bar showing current file and unsaved changes indicator
-- Dark theme by default
-- Modular code structure
+`git clone https://github.com/garrettjwilke/mdsdrv-editor && cd mdsdrv-editor`
 
+`git submodule update --init --recursive`
+
+`mkdir wasm-build && cd wasm-build`
+
+`emcmake cmake .. && emmake make`
+
+`python3 -m http.server`

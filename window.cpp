@@ -1,3 +1,4 @@
+#define GL_SILENCE_DEPRECATION
 #include "window.h"
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -45,11 +46,18 @@ bool Window::Initialize(int width, int height, const std::string& title) {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(m_window, true);
-    ImGui_ImplOpenGL3_Init("#version 330");
+    
+    // Use correct GLSL version based on platform
+    #ifdef __EMSCRIPTEN__
+        // WebGL2 uses GLSL ES 3.00
+        ImGui_ImplOpenGL3_Init("#version 300 es");
+    #else
+        // Desktop OpenGL
+        ImGui_ImplOpenGL3_Init("#version 330");
+    #endif
 
     return true;
 }
