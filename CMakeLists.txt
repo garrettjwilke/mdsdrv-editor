@@ -283,9 +283,16 @@ else()
     endif()
 endif()
 
-# Workaround for MinGW missing <cstdint> include in mmlgui/core.h
 if(MINGW)
-    target_compile_options(${PROJECT_NAME} PRIVATE -include cstdint)
+    # Only apply to C++ sources
+    set_source_files_properties(
+        ${CTRMML_SOURCES}
+        ${MMLGUI_SOURCES}
+        ${IMGUI_SOURCES}
+        ${IMGUI_FILESYSTEM_SOURCES}
+        ${SOURCES}
+        PROPERTIES COMPILE_OPTIONS "-include;cstdint"
+    )
 endif()
 
 # Define LOCAL_LIBVGM to use local libvgm headers
