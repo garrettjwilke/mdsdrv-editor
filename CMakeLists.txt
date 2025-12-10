@@ -26,6 +26,19 @@ include_directories(${LIBVGM_DIR})
 include_directories(${LIBVGM_DIR}/audio)
 include_directories(${LIBVGM_DIR}/emu)
 include_directories(${LIBVGM_DIR}/utils)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+# Generate embedded mdsdrv.bin include at build time
+set(MDSDRV_BIN_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/deps/mmlgui/MDSDRV/out/mdsdrv.bin)
+set(MDSDRV_BIN_INC ${CMAKE_CURRENT_BINARY_DIR}/mdsdrv_bin.inc)
+add_custom_command(
+    OUTPUT ${MDSDRV_BIN_INC}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND xxd -i -n mdsdrv_bin ${MDSDRV_BIN_SOURCE} > ${MDSDRV_BIN_INC}
+    DEPENDS ${MDSDRV_BIN_SOURCE}
+    COMMENT "Generating embedded mdsdrv.bin include"
+)
+add_custom_target(mdsdrv_bin_inc DEPENDS ${MDSDRV_BIN_INC})
 
 # Source files
 set(SOURCES
@@ -34,6 +47,8 @@ set(SOURCES
     editor.cpp
     theme.cpp
     export_window.cpp
+    mdsbin_export_window.cpp
+    mdsdrv_bin.cpp
     pcm_tool_window.cpp
 )
 
@@ -42,6 +57,8 @@ set(HEADERS
     editor.h
     theme.h
     export_window.h
+    mdsbin_export_window.h
+    mdsdrv_bin.h
     pcm_tool_window.h
 )
 
@@ -153,6 +170,7 @@ add_definitions(-DSNDDEV_SELECT -DSNDDEV_SN76496 -DEC_SN76496_MAME -DSNDDEV_YM26
 if(IS_WASM_BUILD)
     # WASM build - use .html extension so Emscripten generates HTML file with shell template
     add_executable(${PROJECT_NAME}.html ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} ${IMGUI_FILESYSTEM_SOURCES} ${MMLGUI_SOURCES} ${CTRMML_SOURCES} ${CTRMML_PLATFORM_SOURCES} ${LIBVGM_AUDIO_SOURCES} ${LIBVGM_EMU_SOURCES} ${LIBVGM_UTILS_SOURCES})
+    add_dependencies(${PROJECT_NAME}.html mdsdrv_bin_inc)
     
     # Set the executable suffix to empty so we get .html output
     set_target_properties(${PROJECT_NAME}.html PROPERTIES
@@ -208,6 +226,7 @@ if(IS_WASM_BUILD)
 else()
     # Native build
     add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} ${IMGUI_FILESYSTEM_SOURCES} ${MMLGUI_SOURCES} ${CTRMML_SOURCES} ${CTRMML_PLATFORM_SOURCES} ${LIBVGM_AUDIO_SOURCES} ${LIBVGM_EMU_SOURCES} ${LIBVGM_UTILS_SOURCES})
+    add_dependencies(${PROJECT_NAME} mdsdrv_bin_inc)
     
     # Find packages for native build
     find_package(glfw3 REQUIRED)

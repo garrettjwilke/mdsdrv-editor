@@ -10,6 +10,7 @@
 class Song_Manager;
 class ExportWindow;
 class PCMToolWindow;
+class MDSBinExportWindow;
 
 class Editor {
 public:
@@ -32,6 +33,7 @@ private:
     std::unique_ptr<Song_Manager> m_songManager;
     std::unique_ptr<ExportWindow> m_exportWindow;
     std::unique_ptr<PCMToolWindow> m_pcmToolWindow;
+    std::unique_ptr<MDSBinExportWindow> m_mdsBinExportWindow;
     std::list<std::shared_ptr<PCMToolWindow>> m_pcmToolWindows;
     bool m_isPlaying;
     bool m_debug;
@@ -53,6 +55,7 @@ private:
     void RenderFileDialogs();
     void RenderConfirmDialogs();
     void RenderExportWindow();
+    void RenderMDSBinExportWindow();
     void RenderPCMToolWindow();
     bool CheckUnsavedChanges();
     void UpdateBuffer();

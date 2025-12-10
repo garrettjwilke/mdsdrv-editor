@@ -11,6 +11,7 @@
 #include "imguifilesystem.h"
 #include "export_window.h"
 #include "pcm_tool_window.h"
+#include "mdsbin_export_window.h"
 
 Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false),
@@ -20,6 +21,7 @@ Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
     m_songManager = std::make_unique<Song_Manager>();
     m_exportWindow = std::make_unique<ExportWindow>();
     m_pcmToolWindow = std::make_unique<PCMToolWindow>();
+    m_mdsBinExportWindow = std::make_unique<MDSBinExportWindow>();
     
     // Set callback for creating new PCM tool windows
     PCMToolWindow::SetCreateWindowCallback([this](std::shared_ptr<PCMToolWindow> window) {
@@ -40,6 +42,7 @@ void Editor::Render() {
     RenderFileDialogs();
     RenderConfirmDialogs();
     RenderExportWindow();
+    RenderMDSBinExportWindow();
     RenderPCMToolWindow();
 }
 
@@ -100,6 +103,11 @@ void Editor::RenderMenuBar() {
             if (ImGui::MenuItem("mdslink export...")) {
                 if (m_exportWindow) {
                     m_exportWindow->SetOpen(true);
+                }
+            }
+            if (ImGui::MenuItem("mdsdrv.bin export...")) {
+                if (m_mdsBinExportWindow) {
+                    m_mdsBinExportWindow->SetOpen(true);
                 }
             }
             if (ImGui::MenuItem("PCM Tool...")) {
@@ -424,6 +432,12 @@ void Editor::RenderConfirmDialogs() {
 void Editor::RenderExportWindow() {
     if (m_exportWindow) {
         m_exportWindow->Render();
+    }
+}
+
+void Editor::RenderMDSBinExportWindow() {
+    if (m_mdsBinExportWindow) {
+        m_mdsBinExportWindow->Render();
     }
 }
 
