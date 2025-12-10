@@ -16,6 +16,12 @@
 #include "mdsbin_export_window.h"
 #include "theme.h"
 #include "config.h"
+#include "core.h"
+#include "song.h"
+#include "track.h"
+#include "track_info.h"
+#include <unordered_set>
+#include <map>
 
 Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false),
@@ -185,11 +191,21 @@ void Editor::RenderTextEditor() {
     std::copy(m_text.begin(), m_text.end(), m_textBuffer.begin());
     m_textBuffer[m_text.size()] = '\0';
     
+    // Update highlights during playback
+    if (m_isPlaying) {
+        ShowTrackPositions();
+    } else {
+        m_highlights.clear();
+    }
+    
     if (ImGui::InputTextMultiline("##TextEditor", m_textBuffer.data(), m_textBuffer.size(), 
                                    textSize, flags)) {
         m_text = std::string(m_textBuffer.data());
         m_unsavedChanges = true;
     }
+    
+    // Render highlights right after the text input (so GetItemRectMin/Max work correctly)
+    RenderHighlights();
 
     // Bottom control bar with padding to keep it prominent
     ImGui::Dummy(ImVec2(0.0f, verticalPadding));
@@ -632,11 +648,223 @@ void Editor::StopMML() {
         DebugLog("Stopping playback...");
         m_songManager->stop();
         m_isPlaying = false;
+        m_highlights.clear(); // Clear highlights when stopping
         DebugLog("Playback stopped");
     } else if (m_songManager) {
         DebugLog("StopMML() called but not playing");
     } else {
         DebugLog("ERROR: StopMML() called but Song_Manager is null!");
+    }
+}
+
+//! Get the length of a subroutine (helper function for macro highlighting)
+unsigned int Editor::GetSubroutineLengthHelper(Song& song, unsigned int param, unsigned int max_recursion)
+{
+    try
+    {
+        Track& track = song.get_track(param);
+        if(track.get_event_count())
+        {
+            auto event = track.get_event(track.get_event_count() - 1);
+            uint32_t end_time;
+            if(event.type == Event::JUMP && max_recursion != 0)
+                end_time = event.play_time + GetSubroutineLengthHelper(song, event.param, max_recursion - 1);
+            else if(event.type == Event::LOOP_END && max_recursion != 0)
+            {
+                // Simplified loop length calculation
+                unsigned int loop_count = event.param - 1;
+                unsigned int loop_start_time = 0;
+                int depth = 0;
+                for(unsigned int pos = track.get_event_count() - 1; pos > 0; pos--)
+                {
+                    auto loop_event = track.get_event(pos);
+                    if(loop_event.type == Event::LOOP_END)
+                        depth++;
+                    else if(loop_event.type == Event::LOOP_START)
+                    {
+                        if(depth)
+                            depth--;
+                        else
+                        {
+                            loop_start_time = loop_event.play_time;
+                            break;
+                        }
+                    }
+                }
+                end_time = event.play_time + (event.play_time - loop_start_time) * loop_count;
+            }
+            else
+                end_time = event.play_time + event.on_time + event.off_time;
+            return end_time - track.get_event(0).play_time;
+        }
+    }
+    catch(std::exception &e)
+    {
+    }
+    return 0;
+}
+
+void Editor::ShowTrackPositions()
+{
+    m_highlights.clear();
+    
+    if (!m_songManager) {
+        return;
+    }
+    
+    Song_Manager::Track_Map map = {};
+    unsigned int ticks = 0;
+
+    auto tracks = m_songManager->get_tracks();
+    if(tracks != nullptr)
+        map = *tracks;
+
+    auto player = m_songManager->get_player();
+    if(player != nullptr && !player->get_finished())
+        ticks = player->get_driver()->get_player_ticks();
+
+    auto song = m_songManager->get_song();
+    if(song == nullptr)
+    {
+        return;
+    }
+
+    for(auto track_it = map.begin(); track_it != map.end(); track_it++)
+    {
+        auto& info = track_it->second;
+        int offset = 0;
+
+        // calculate offset to first loop
+        if(ticks > info.length && info.loop_length)
+            offset = ((ticks - info.loop_start) / info.loop_length) * info.loop_length;
+
+        // calculate position
+        auto it = info.events.lower_bound(ticks - offset);
+        if(it != info.events.begin())
+        {
+            --it;
+            auto event = it->second;
+            for(auto && i : event.references)
+            {
+                // Include all references for highlighting - empty filename means current file,
+                // and we want to highlight macro tracks and rndpat patterns even if they have filenames
+                m_highlights[i->get_line()].insert(i->get_column());
+            }
+        }
+
+        // Also check if we're inside a JUMP event (macro call) by examining the actual track
+        // This handles cases where the Track_Info doesn't have events during macro execution
+        try
+        {
+            Track& track = song->get_track(track_it->first);
+            unsigned int event_count = track.get_event_count();
+            
+            // Find JUMP events that might be active at the current tick position
+            for(unsigned int pos = 0; pos < event_count; pos++)
+            {
+                auto track_event = track.get_event(pos);
+                if(track_event.type == Event::JUMP)
+                {
+                    // Calculate if we're within this JUMP event's duration
+                    unsigned int jump_start = track_event.play_time;
+                    unsigned int jump_length = GetSubroutineLengthHelper(*song, track_event.param, 10);
+                    unsigned int jump_end = jump_start + jump_length;
+                    
+                    // Account for looping
+                    unsigned int local_ticks = ticks - offset;
+                    if(local_ticks >= jump_start && local_ticks < jump_end)
+                    {
+                        // We're inside a macro call - get events from the macro track
+                        unsigned int macro_offset = local_ticks - jump_start;
+                        
+                        // Check if the macro track is in our map
+                        auto macro_it = map.find(track_event.param);
+                        if(macro_it != map.end())
+                        {
+                            auto& macro_info = macro_it->second;
+                            int macro_offset_loop = 0;
+                            
+                            // Handle looping in macro track
+                            if(macro_offset > macro_info.length && macro_info.loop_length)
+                                macro_offset_loop = ((macro_offset - macro_info.loop_start) / macro_info.loop_length) * macro_info.loop_length;
+                            
+                            // Find events in the macro track
+                            auto macro_event_it = macro_info.events.lower_bound(macro_offset - macro_offset_loop);
+                            if(macro_event_it != macro_info.events.begin())
+                            {
+                                --macro_event_it;
+                                auto macro_event = macro_event_it->second;
+                                for(auto && ref : macro_event.references)
+                                {
+                                    m_highlights[ref->get_line()].insert(ref->get_column());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch(std::exception&)
+        {
+            // Track might not exist, skip it
+        }
+    }
+}
+
+void Editor::RenderHighlights()
+{
+    if (m_highlights.empty()) {
+        return;
+    }
+    
+    // Get the text input widget's rectangle (must be called right after InputTextMultiline)
+    ImVec2 frame_min = ImGui::GetItemRectMin();
+    ImVec2 frame_max = ImGui::GetItemRectMax();
+    ImVec2 frame_padding = ImGui::GetStyle().FramePadding;
+    
+    // Get draw list
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    
+    // Highlight color (yellow with transparency)
+    ImU32 highlight_color = IM_COL32(255, 255, 0, 120); // Yellow, semi-transparent
+    
+    // Get font size for line height calculation
+    float line_height = ImGui::GetTextLineHeight();
+    float char_width = ImGui::CalcTextSize("M").x; // Use 'M' as a typical character width
+    
+    // Calculate text start position (inside the frame, accounting for padding)
+    ImVec2 text_start = ImVec2(frame_min.x + frame_padding.x, frame_min.y + frame_padding.y);
+    
+    // Split text into lines and render highlights
+    std::istringstream text_stream(m_text);
+    std::string line;
+    int line_num = 0;
+    
+    while (std::getline(text_stream, line)) {
+        auto highlight_it = m_highlights.find(line_num);
+        if (highlight_it != m_highlights.end()) {
+            // This line has highlights
+            const auto& columns = highlight_it->second;
+            
+            for (int col : columns) {
+                if (col >= 0 && col <= (int)line.length()) {
+                    // Calculate position for this character
+                    // For multiline text, we need to account for the actual character positions
+                    std::string line_prefix = line.substr(0, col);
+                    float x = text_start.x + ImGui::CalcTextSize(line_prefix.c_str()).x;
+                    float y = text_start.y + line_num * line_height;
+                    
+                    // Draw highlight rectangle for the character
+                    // If at end of line, highlight a small width
+                    float width = (col < (int)line.length()) ? char_width : char_width * 0.5f;
+                    ImVec2 min_pos(x, y);
+                    ImVec2 max_pos(x + width, y + line_height);
+                    
+                    draw_list->AddRectFilled(min_pos, max_pos, highlight_color);
+                }
+            }
+        }
+        line_num++;
     }
 }
 

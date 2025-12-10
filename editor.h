@@ -5,6 +5,8 @@
 #include <vector>
 #include <memory>
 #include <list>
+#include <map>
+#include <unordered_set>
 #include "config.h"
 
 // Forward declarations
@@ -12,6 +14,7 @@ class Song_Manager;
 class ExportWindow;
 class PCMToolWindow;
 class MDSBinExportWindow;
+class Song;
 
 class Editor {
 public:
@@ -54,6 +57,9 @@ private:
     bool m_pendingNewFile;
     bool m_pendingOpenFile;
     
+    // Playback highlighting
+    std::map<int, std::unordered_set<int>> m_highlights; // line -> set of columns
+    
     void RenderMenuBar();
     void RenderTextEditor();
     void RenderStatusBar();
@@ -67,6 +73,13 @@ private:
     void UpdateBuffer();
     void PlayMML();
     void DebugLog(const std::string& message);
+    
+    // Note highlighting during playback
+    void ShowTrackPositions();
+    void RenderHighlights();
+    
+    // Helper for macro highlighting
+    static unsigned int GetSubroutineLengthHelper(Song& song, unsigned int param, unsigned int max_recursion);
 };
 
 #endif // EDITOR_H
