@@ -106,7 +106,17 @@ void Window::Shutdown() {
 }
 
 void Window::BeginFrame() {
+    // Poll events first to process window close and other events
     glfwPollEvents();
+    
+    // On Linux, we may need to process events multiple times to ensure
+    // window close events are properly handled
+    #ifndef __APPLE__
+    if (glfwWindowShouldClose(m_window)) {
+        // Force process any pending events
+        glfwPollEvents();
+    }
+    #endif
 
     // Start the ImGui frame
     ImGui_ImplOpenGL3_NewFrame();

@@ -58,10 +58,21 @@ int main() {
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else
     // Native main loop
-    while (!window.ShouldClose())
+    while (true)
 #endif
     {
+        // Check close flag first, before processing any events
+        // This ensures we exit immediately when close is requested
+        if (window.ShouldClose()) {
+            break;
+        }
+        
         window.BeginFrame();
+        
+        // Check again after processing events
+        if (window.ShouldClose()) {
+            break;
+        }
         
         editor.Render();
         
