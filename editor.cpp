@@ -183,31 +183,62 @@ void Editor::UpdateBuffer() {
 }
 
 void Editor::RenderFileDialogs() {
+    ImGuiIO& io = ImGui::GetIO();
+    
     // Open file dialog
     static ImGuiFs::Dialog openDialog;
-    if (m_showOpenDialog) {
-        const char* chosenPath = openDialog.chooseFileDialog(m_showOpenDialog, nullptr, ".mml;.txt;.*", "Open MML File");
-        if (strlen(chosenPath) > 0) {
-            OpenFile(chosenPath);
+    static bool openDialogWasOpen = false;
+    
+    // Create a trigger button state - true when menu item was just clicked
+    bool openButtonPressed = m_showOpenDialog && !openDialogWasOpen;
+    
+    // Center the dialog on screen
+    ImVec2 dialogSize(600, 400);
+    ImVec2 dialogPos((io.DisplaySize.x - dialogSize.x) * 0.5f, (io.DisplaySize.y - dialogSize.y) * 0.5f);
+    
+    // Call the dialog - it manages its own state
+    const char* openChosenPath = openDialog.chooseFileDialog(openButtonPressed, nullptr, ".mml;.txt;.*", "Open MML File", dialogSize, dialogPos);
+    
+    // Track if dialog is open
+    openDialogWasOpen = m_showOpenDialog;
+    
+    // Check if a path was chosen
+    if (strlen(openChosenPath) > 0) {
+        OpenFile(openChosenPath);
+        m_showOpenDialog = false;
+        openDialogWasOpen = false;
+    } else if (m_showOpenDialog && strlen(openDialog.getChosenPath()) == 0 && !openButtonPressed) {
+        // Dialog might have been closed - check if it's still trying to show
+        // Reset if dialog is no longer active
+        if (!openButtonPressed) {
             m_showOpenDialog = false;
-        } else if (!m_showOpenDialog) {
-            // Dialog was closed without selecting
-            m_showOpenDialog = false;
+            openDialogWasOpen = false;
         }
     }
     
     // Save As dialog
     static ImGuiFs::Dialog saveAsDialog;
-    if (m_showSaveAsDialog) {
-        const char* defaultName = m_filepath.empty() ? "untitled.mml" : m_filepath.c_str();
-        const char* chosenPath = saveAsDialog.saveFileDialog(m_showSaveAsDialog, nullptr, defaultName, ".mml;.txt;.*", "Save MML File");
-        if (strlen(chosenPath) > 0) {
-            SaveFile(chosenPath);
-            m_showSaveAsDialog = false;
-        } else if (!m_showSaveAsDialog) {
-            // Dialog was closed without selecting
-            m_showSaveAsDialog = false;
-        }
+    static bool saveAsDialogWasOpen = false;
+    
+    // Create a trigger button state - true when menu item was just clicked
+    bool saveButtonPressed = m_showSaveAsDialog && !saveAsDialogWasOpen;
+    
+    // Call the dialog - it manages its own state
+    const char* defaultName = m_filepath.empty() ? "untitled.mml" : m_filepath.c_str();
+    const char* saveChosenPath = saveAsDialog.saveFileDialog(saveButtonPressed, nullptr, defaultName, ".mml;.txt;.*", "Save MML File", dialogSize, dialogPos);
+    
+    // Track if dialog is open
+    saveAsDialogWasOpen = m_showSaveAsDialog;
+    
+    // Check if a path was chosen
+    if (strlen(saveChosenPath) > 0) {
+        SaveFile(saveChosenPath);
+        m_showSaveAsDialog = false;
+        saveAsDialogWasOpen = false;
+    } else if (m_showSaveAsDialog && strlen(saveAsDialog.getChosenPath()) == 0 && !saveButtonPressed) {
+        // Dialog might have been closed - reset
+        m_showSaveAsDialog = false;
+        saveAsDialogWasOpen = false;
     }
 }
 
