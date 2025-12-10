@@ -14,7 +14,8 @@
 namespace fs = std::filesystem;
 
 ExportWindow::ExportWindow() : m_fs(true, false, true), m_open(false),
-                               m_browse_bgm(false), m_browse_sfx(false), m_browse_output(false)
+                               m_browse_bgm(false), m_browse_sfx(false), m_browse_output(false),
+                               m_request_focus(false)
 {
     std::string cwd = fs::current_path().string();
     strncpy(m_bgm_path, "musicdata", sizeof(m_bgm_path) - 1);
@@ -31,6 +32,13 @@ void ExportWindow::Render()
     if (!m_open) return;
 
     ImGui::SetNextWindowSize(ImVec2(600, 400), ImGuiCond_FirstUseEver);
+
+    // Bring export window to front if focus was requested
+    if (m_request_focus) {
+        ImGui::SetNextWindowFocus();
+        m_request_focus = false;
+    }
+
     if (ImGui::Begin("mdslink export", &m_open))
     {
         ImGui::InputText("BGM MML Directory", m_bgm_path, sizeof(m_bgm_path));

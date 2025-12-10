@@ -105,7 +105,13 @@ void Editor::RenderMenuBar() {
             if (ImGui::MenuItem("PCM Tool...")) {
                 if (m_pcmToolWindow) {
                     m_pcmToolWindow->SetOpen(true);
-                    // Focus will be set in the next frame via m_request_focus
+                }
+
+                // Reopen and focus all existing PCM tool windows (including exported ones)
+                for (auto& window : m_pcmToolWindows) {
+                    if (window) {
+                        window->SetOpen(true);
+                    }
                 }
             }
             ImGui::EndMenu();

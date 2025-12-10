@@ -10,7 +10,7 @@ public:
     
     void Render();
     bool IsOpen() const { return m_open; }
-    void SetOpen(bool open) { m_open = open; }
+    void SetOpen(bool open) { m_open = open; if (open) m_request_focus = true; }
 
 private:
     char m_bgm_path[1024];
@@ -26,6 +26,7 @@ private:
     bool m_browse_bgm;
     bool m_browse_sfx;
     bool m_browse_output;
+    bool m_request_focus;
     
     ImGuiFs::Dialog m_fs;
     
