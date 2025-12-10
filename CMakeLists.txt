@@ -283,6 +283,11 @@ else()
     endif()
 endif()
 
+# Workaround for MinGW missing <cstdint> include in mmlgui/core.h
+if(MINGW)
+    target_compile_options(${PROJECT_NAME} PRIVATE -include cstdint)
+endif()
+
 # Define LOCAL_LIBVGM to use local libvgm headers
 add_definitions(-DLOCAL_LIBVGM)
 
