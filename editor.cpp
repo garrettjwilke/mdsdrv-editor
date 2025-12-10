@@ -11,7 +11,9 @@
 #include "imguifilesystem.h"
 
 Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
-                   m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false) {
+                   m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false),
+                   m_showConfirmNewDialog(false), m_showConfirmOpenDialog(false),
+                   m_pendingNewFile(false), m_pendingOpenFile(false) {
     m_text = "// Welcome to MDSDRV Editor\n// Start typing...\n";
     m_songManager = std::make_unique<Song_Manager>();
     UpdateBuffer();
@@ -23,20 +25,30 @@ Editor::~Editor() {
 
 void Editor::Render() {
     RenderMenuBar();
-    RenderPlaybackControls();
     RenderTextEditor();
     RenderStatusBar();
     RenderFileDialogs();
+    RenderConfirmDialogs();
 }
 
 void Editor::RenderMenuBar() {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("New", "Ctrl+N")) {
-                NewFile();
+                if (CheckUnsavedChanges()) {
+                    m_showConfirmNewDialog = true;
+                    m_pendingNewFile = true;
+                } else {
+                    NewFile();
+                }
             }
             if (ImGui::MenuItem("Open", "Ctrl+O")) {
-                m_showOpenDialog = true;
+                if (CheckUnsavedChanges()) {
+                    m_showConfirmOpenDialog = true;
+                    m_pendingOpenFile = true;
+                } else {
+                    m_showOpenDialog = true;
+                }
             }
             if (ImGui::MenuItem("Save", "Ctrl+S")) {
                 if (!m_filepath.empty()) {
@@ -85,14 +97,44 @@ void Editor::RenderTextEditor() {
     
     // Get available space
     ImGuiIO& io = ImGui::GetIO();
-    ImVec2 pos = ImGui::GetWindowPos();
-    ImVec2 size = ImGui::GetWindowSize();
     
-    // Adjust for menu bar and playback controls
+    // Adjust for menu bar
     float menuBarHeight = ImGui::GetFrameHeight();
-    float controlsHeight = 30.0f;
-    ImGui::SetWindowPos(ImVec2(0, menuBarHeight + controlsHeight));
-    ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, io.DisplaySize.y - menuBarHeight - controlsHeight - 20));
+    ImGui::SetWindowPos(ImVec2(0, menuBarHeight));
+    ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, io.DisplaySize.y - menuBarHeight - 20));
+    
+    // Play and Stop buttons at the top of the editor area
+    if (ImGui::Button("Play", ImVec2(70, 20))) {
+        PlayMML();
+    }
+    
+    ImGui::SameLine();
+    
+    if (ImGui::Button("Stop", ImVec2(70, 20))) {
+        StopMML();
+    }
+    
+    ImGui::SameLine();
+    
+    // Show compile status
+    if (m_songManager) {
+        Song_Manager::Compile_Result compileResult = m_songManager->get_compile_result();
+        bool compileInProgress = m_songManager->get_compile_in_progress();
+        
+        if (compileInProgress) {
+            ImGui::Text("Compiling...");
+        } else if (compileResult == Song_Manager::COMPILE_ERROR) {
+            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Compile Error: %s", 
+                              m_songManager->get_error_message().c_str());
+        } else if (compileResult == Song_Manager::COMPILE_OK) {
+            ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Compile OK");
+        }
+    }
+    
+    ImGui::SameLine();
+    ImGui::Checkbox("Debug", &m_debug);
+    
+    ImGui::Separator();
     
     // Text input
     ImVec2 textSize = ImVec2(-1.0f, -1.0f);
@@ -207,12 +249,14 @@ void Editor::RenderFileDialogs() {
         OpenFile(openChosenPath);
         m_showOpenDialog = false;
         openDialogWasOpen = false;
+        m_pendingOpenFile = false;
     } else if (m_showOpenDialog && strlen(openDialog.getChosenPath()) == 0 && !openButtonPressed) {
         // Dialog might have been closed - check if it's still trying to show
         // Reset if dialog is no longer active
         if (!openButtonPressed) {
             m_showOpenDialog = false;
             openDialogWasOpen = false;
+            m_pendingOpenFile = false;
         }
     }
     
@@ -235,59 +279,113 @@ void Editor::RenderFileDialogs() {
         SaveFile(saveChosenPath);
         m_showSaveAsDialog = false;
         saveAsDialogWasOpen = false;
+        
+        // If we were pending a new file or open file, handle it now
+        if (m_pendingNewFile) {
+            NewFile();
+            m_pendingNewFile = false;
+        } else if (m_pendingOpenFile) {
+            m_showOpenDialog = true;
+            m_pendingOpenFile = false;
+        }
     } else if (m_showSaveAsDialog && strlen(saveAsDialog.getChosenPath()) == 0 && !saveButtonPressed) {
         // Dialog might have been closed - reset
         m_showSaveAsDialog = false;
         saveAsDialogWasOpen = false;
+        // Cancel pending actions if user cancelled save
+        if (m_pendingNewFile || m_pendingOpenFile) {
+            m_pendingNewFile = false;
+            m_pendingOpenFile = false;
+        }
     }
 }
 
-void Editor::RenderPlaybackControls() {
-    ImGuiIO& io = ImGui::GetIO();
-    float menuBarHeight = ImGui::GetFrameHeight();
+bool Editor::CheckUnsavedChanges() {
+    return m_unsavedChanges;
+}
+
+void Editor::RenderConfirmDialogs() {
+    // Confirm New File dialog
+    if (m_showConfirmNewDialog) {
+        ImGui::OpenPopup("Confirm New File");
+        m_showConfirmNewDialog = false;
+    }
     
-    ImGui::Begin("Playback Controls", nullptr, 
-                 ImGuiWindowFlags_NoTitleBar | 
-                 ImGuiWindowFlags_NoCollapse | 
-                 ImGuiWindowFlags_NoMove | 
-                 ImGuiWindowFlags_NoResize);
-    
-    ImGui::SetWindowPos(ImVec2(0, menuBarHeight));
-    ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 30));
-    
-    // Debug toggle
-    ImGui::Checkbox("Debug", &m_debug);
-    ImGui::SameLine();
-    
-    // Check compile status
-    if (m_songManager) {
-        Song_Manager::Compile_Result compileResult = m_songManager->get_compile_result();
-        bool compileInProgress = m_songManager->get_compile_in_progress();
+    if (ImGui::BeginPopupModal("Confirm New File", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("You have unsaved changes. Do you want to save before creating a new file?");
+        ImGui::Separator();
         
-        if (compileInProgress) {
-            ImGui::Text("Compiling...");
-        } else if (compileResult == Song_Manager::COMPILE_ERROR) {
-            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Compile Error: %s", 
-                              m_songManager->get_error_message().c_str());
-        } else if (compileResult == Song_Manager::COMPILE_OK) {
-            ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Compile OK");
+        if (ImGui::Button("Yes", ImVec2(100, 0))) {
+            if (!m_filepath.empty()) {
+                SaveFile(m_filepath);
+                NewFile();
+                m_pendingNewFile = false;
+            } else {
+                // Need to save as first
+                m_showSaveAsDialog = true;
+                m_pendingNewFile = true;
+            }
+            ImGui::CloseCurrentPopup();
         }
+        
+        ImGui::SameLine();
+        
+        if (ImGui::Button("No", ImVec2(100, 0))) {
+            NewFile();
+            m_pendingNewFile = false;
+            ImGui::CloseCurrentPopup();
+        }
+        
+        ImGui::SameLine();
+        
+        if (ImGui::Button("Cancel", ImVec2(100, 0))) {
+            m_pendingNewFile = false;
+            ImGui::CloseCurrentPopup();
+        }
+        
+        ImGui::EndPopup();
     }
     
-    ImGui::SameLine(io.DisplaySize.x - 150);
-    
-    // Play button
-    if (m_isPlaying) {
-        if (ImGui::Button("Stop", ImVec2(70, 20))) {
-            StopMML();
-        }
-    } else {
-        if (ImGui::Button("Play", ImVec2(70, 20))) {
-            PlayMML();
-        }
+    // Confirm Open File dialog
+    if (m_showConfirmOpenDialog) {
+        ImGui::OpenPopup("Confirm Open File");
+        m_showConfirmOpenDialog = false;
     }
     
-    ImGui::End();
+    if (ImGui::BeginPopupModal("Confirm Open File", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("You have unsaved changes. Do you want to save before opening a new file?");
+        ImGui::Separator();
+        
+        if (ImGui::Button("Yes", ImVec2(100, 0))) {
+            if (!m_filepath.empty()) {
+                SaveFile(m_filepath);
+                m_showOpenDialog = true;
+                m_pendingOpenFile = false;
+            } else {
+                // Need to save as first
+                m_showSaveAsDialog = true;
+                m_pendingOpenFile = true;
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        
+        ImGui::SameLine();
+        
+        if (ImGui::Button("No", ImVec2(100, 0))) {
+            m_showOpenDialog = true;
+            m_pendingOpenFile = false;
+            ImGui::CloseCurrentPopup();
+        }
+        
+        ImGui::SameLine();
+        
+        if (ImGui::Button("Cancel", ImVec2(100, 0))) {
+            m_pendingOpenFile = false;
+            ImGui::CloseCurrentPopup();
+        }
+        
+        ImGui::EndPopup();
+    }
 }
 
 void Editor::DebugLog(const std::string& message) {

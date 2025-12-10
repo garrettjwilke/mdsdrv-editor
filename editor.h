@@ -34,11 +34,18 @@ private:
     bool m_showSaveDialog;
     bool m_showSaveAsDialog;
     
+    // Confirmation dialogs
+    bool m_showConfirmNewDialog;
+    bool m_showConfirmOpenDialog;
+    bool m_pendingNewFile;
+    bool m_pendingOpenFile;
+    
     void RenderMenuBar();
     void RenderTextEditor();
     void RenderStatusBar();
-    void RenderPlaybackControls();
     void RenderFileDialogs();
+    void RenderConfirmDialogs();
+    bool CheckUnsavedChanges();
     void UpdateBuffer();
     void PlayMML();
     void StopMML();
