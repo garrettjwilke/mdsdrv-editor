@@ -1,6 +1,8 @@
 #include "window.h"
 #include "editor.h"
 #include "theme.h"
+#include "deps/mmlgui/src/audio_manager.h"
+#include <iostream>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -9,10 +11,39 @@
 #endif
 
 int main() {
+    // Initialize Audio_Manager
+    Audio_Manager& audioManager = Audio_Manager::get();
+    audioManager.set_sample_rate(44100);
+    std::cout << "[Main] Audio_Manager initialized with sample rate: 44100" << std::endl;
+    
+    // Set the audio driver (Core Audio for macOS, driver signature 0x24)
+    // Try to use the first available driver
+    const auto& driverList = audioManager.get_driver_list();
+    if (!driverList.empty()) {
+        // Use the first driver (Core Audio on macOS)
+        int driverSig = driverList.begin()->first;  // Key is the signature
+        std::string driverName = driverList.begin()->second.second;
+        std::cout << "[Main] Setting audio driver: " << driverName 
+                  << " (sig=0x" << std::hex << driverSig << std::dec << ")" << std::endl;
+        audioManager.set_driver(driverSig);
+    } else {
+        std::cout << "[Main] WARNING: No audio drivers available!" << std::endl;
+    }
+    
+    std::cout << "[Main] Audio enabled: " << (audioManager.get_audio_enabled() ? "yes" : "no") << std::endl;
+    std::cout << "[Main] Audio driver: " << audioManager.get_driver() << std::endl;
+    std::cout << "[Main] Audio device: " << audioManager.get_device() << std::endl;
+    
     Window window;
     if (!window.Initialize(1280, 720, "MDSDRV Editor")) {
         return -1;
     }
+    
+    // Set window handle for audio manager (needed for some audio drivers)
+    // macOS CoreAudio doesn't need a window handle, but we set it anyway
+    #ifndef __EMSCRIPTEN__
+    audioManager.set_window_handle(nullptr);
+    #endif
 
     Editor editor;
     Theme::ApplyDefault();

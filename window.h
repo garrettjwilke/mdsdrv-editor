@@ -16,6 +16,7 @@ public:
     void EndFrame();
     
     bool ShouldClose() const;
+    GLFWwindow* GetGLFWWindow() const { return m_window; }
 
 private:
     GLFWwindow* m_window;

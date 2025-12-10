@@ -17,6 +17,16 @@ endif()
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/imgui)
 include_directories(${IMGUI_DIR})
 
+# MMLGUI
+set(MMLGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/mmlgui)
+set(LIBVGM_DIR ${MMLGUI_DIR}/libvgm)
+include_directories(${MMLGUI_DIR}/src)
+include_directories(${MMLGUI_DIR}/ctrmml/src)
+include_directories(${LIBVGM_DIR})
+include_directories(${LIBVGM_DIR}/audio)
+include_directories(${LIBVGM_DIR}/emu)
+include_directories(${LIBVGM_DIR}/utils)
+
 # Source files
 set(SOURCES
     main.cpp
@@ -54,10 +64,86 @@ endif()
 
 set(IMGUI_SOURCES ${IMGUI_CORE_SOURCES} ${IMGUI_BACKEND_SOURCES})
 
+# MMLGUI sources - core files needed for playback
+set(MMLGUI_SOURCES
+    ${MMLGUI_DIR}/src/song_manager.cpp
+    ${MMLGUI_DIR}/src/emu_player.cpp
+    ${MMLGUI_DIR}/src/audio_manager.cpp
+    ${MMLGUI_DIR}/src/track_info.cpp
+)
+
+# CTRMML sources - needed by song_manager
+set(CTRMML_SOURCES
+    ${MMLGUI_DIR}/ctrmml/src/song.cpp
+    ${MMLGUI_DIR}/ctrmml/src/input.cpp
+    ${MMLGUI_DIR}/ctrmml/src/player.cpp
+    ${MMLGUI_DIR}/ctrmml/src/mml_input.cpp
+    ${MMLGUI_DIR}/ctrmml/src/driver.cpp
+    ${MMLGUI_DIR}/ctrmml/src/track.cpp
+    ${MMLGUI_DIR}/ctrmml/src/vgm.cpp
+    ${MMLGUI_DIR}/ctrmml/src/conf.cpp
+    ${MMLGUI_DIR}/ctrmml/src/optimizer.cpp
+    ${MMLGUI_DIR}/ctrmml/src/riff.cpp
+    ${MMLGUI_DIR}/ctrmml/src/wave.cpp
+    ${MMLGUI_DIR}/ctrmml/src/stringf.cpp
+)
+
+# Platform-specific files (MD platform) - exclude mdslink.cpp as it has its own main()
+file(GLOB CTRMML_PLATFORM_SOURCES
+    "${MMLGUI_DIR}/ctrmml/src/platform/md.cpp"
+    "${MMLGUI_DIR}/ctrmml/src/platform/mdsdrv.cpp"
+)
+
+# LibVGM utils sources - needed for OSMutex
+if(APPLE OR UNIX)
+    set(LIBVGM_UTILS_SOURCES
+        ${LIBVGM_DIR}/utils/OSMutex_POSIX.c
+    )
+elseif(WIN32)
+    set(LIBVGM_UTILS_SOURCES
+        ${LIBVGM_DIR}/utils/OSMutex_Win.c
+    )
+endif()
+
+# LibVGM audio sources - minimal set for macOS
+set(LIBVGM_AUDIO_SOURCES
+    ${LIBVGM_DIR}/audio/AudioStream.c
+)
+
+# Add platform-specific audio driver (CoreAudio for macOS)
+if(APPLE AND NOT IS_WASM_BUILD)
+    set(LIBVGM_AUDIO_SOURCES ${LIBVGM_AUDIO_SOURCES}
+        ${LIBVGM_DIR}/audio/AudDrv_CoreAudio.c
+    )
+    add_definitions(-DAUDDRV_CA)
+elseif(WIN32)
+    # Windows drivers would go here
+elseif(UNIX AND NOT APPLE)
+    # Linux drivers would go here
+endif()
+
+# LibVGM emu sources - minimal set needed for SN76496 and YM2612
+set(LIBVGM_EMU_SOURCES
+    ${LIBVGM_DIR}/emu/SoundEmu.c
+    ${LIBVGM_DIR}/emu/Resampler.c
+    ${LIBVGM_DIR}/emu/logging.c
+    ${LIBVGM_DIR}/emu/panning.c
+    ${LIBVGM_DIR}/emu/dac_control.c
+    # SN76496 core (needed for MDSDRV)
+    ${LIBVGM_DIR}/emu/cores/sn764intf.c
+    ${LIBVGM_DIR}/emu/cores/sn76496.c
+    # YM2612 core (needed for MDSDRV)
+    ${LIBVGM_DIR}/emu/cores/2612intf.c
+    ${LIBVGM_DIR}/emu/cores/fmopn.c
+)
+
+# Add compile definitions for libvgm
+add_definitions(-DSNDDEV_SELECT -DSNDDEV_SN76496 -DEC_SN76496_MAME -DSNDDEV_YM2612 -DEC_YM2612_GPGX)
+
 # Create executable
 if(IS_WASM_BUILD)
     # WASM build - use .html extension so Emscripten generates HTML file with shell template
-    add_executable(${PROJECT_NAME}.html ${SOURCES} ${HEADERS} ${IMGUI_SOURCES})
+    add_executable(${PROJECT_NAME}.html ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} ${MMLGUI_SOURCES} ${CTRMML_SOURCES} ${CTRMML_PLATFORM_SOURCES} ${LIBVGM_AUDIO_SOURCES} ${LIBVGM_EMU_SOURCES} ${LIBVGM_UTILS_SOURCES})
     
     # Set the executable suffix to empty so we get .html output
     set_target_properties(${PROJECT_NAME}.html PROPERTIES
@@ -112,30 +198,53 @@ if(IS_WASM_BUILD)
     # Emscripten provides GLFW and OpenGL through its ports
 else()
     # Native build
-    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${IMGUI_SOURCES})
+    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} ${MMLGUI_SOURCES} ${CTRMML_SOURCES} ${CTRMML_PLATFORM_SOURCES} ${LIBVGM_AUDIO_SOURCES} ${LIBVGM_EMU_SOURCES} ${LIBVGM_UTILS_SOURCES})
     
     # Find packages for native build
     find_package(glfw3 REQUIRED)
     find_package(OpenGL REQUIRED)
     
     # Link libraries for native
-    target_link_libraries(${PROJECT_NAME}
-        glfw
-        OpenGL::GL
-    )
+    if(APPLE)
+        target_link_libraries(${PROJECT_NAME} PRIVATE
+            glfw
+            OpenGL::GL
+            "-framework AudioToolbox"
+        )
+    else()
+        target_link_libraries(${PROJECT_NAME} PRIVATE
+            glfw
+            OpenGL::GL
+        )
+    endif()
 endif()
+
+# Define LOCAL_LIBVGM to use local libvgm headers
+add_definitions(-DLOCAL_LIBVGM)
 
 # Include directories (common for both)
 if(IS_WASM_BUILD)
     target_include_directories(${PROJECT_NAME}.html PRIVATE
         ${IMGUI_DIR}
         ${IMGUI_DIR}/backends
+        ${MMLGUI_DIR}/src
+        ${MMLGUI_DIR}/ctrmml/src
+        ${LIBVGM_DIR}
+        ${LIBVGM_DIR}/audio
+        ${LIBVGM_DIR}/emu
+        ${LIBVGM_DIR}/utils
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
 else()
     target_include_directories(${PROJECT_NAME} PRIVATE
         ${IMGUI_DIR}
         ${IMGUI_DIR}/backends
+        ${MMLGUI_DIR}/src
+        ${MMLGUI_DIR}/ctrmml/src
+        ${LIBVGM_DIR}
+        ${LIBVGM_DIR}/audio
+        ${LIBVGM_DIR}/emu
+        ${LIBVGM_DIR}/utils
     )
 endif()
 
