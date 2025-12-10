@@ -24,6 +24,7 @@
 #include <unordered_set>
 #include <map>
 #include <memory>
+#include <cstdlib>
 
 Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false),
@@ -761,10 +762,12 @@ void Editor::ShowTrackPositions()
             Track& track = song->get_track(track_it->first);
             unsigned int event_count = track.get_event_count();
             
-            // Find JUMP events that might be active at the current tick position
+            // Find JUMP events and PLATFORM events (rndpat) that might be active at the current tick position
             for(unsigned int pos = 0; pos < event_count; pos++)
             {
                 auto track_event = track.get_event(pos);
+                unsigned int local_ticks = ticks - offset;
+                
                 if(track_event.type == Event::JUMP)
                 {
                     // Calculate if we're within this JUMP event's duration
@@ -772,8 +775,6 @@ void Editor::ShowTrackPositions()
                     unsigned int jump_length = GetSubroutineLengthHelper(*song, track_event.param, 10);
                     unsigned int jump_end = jump_start + jump_length;
                     
-                    // Account for looping
-                    unsigned int local_ticks = ticks - offset;
                     if(local_ticks >= jump_start && local_ticks < jump_end)
                     {
                         // We're inside a macro call - get events from the macro track
@@ -826,6 +827,93 @@ void Editor::ShowTrackPositions()
                                 }
                             }
                         }
+                    }
+                }
+                else if(track_event.type == Event::PLATFORM)
+                {
+                    // Check if this is an rndpat command
+                    try
+                    {
+                        const Tag& tag = song->get_platform_command(track_event.param);
+                        if(!tag.empty() && tag[0] == "rndpat")
+                        {
+                            // This is an rndpat command - check if we're within its duration
+                            // rndpat randomly selects one of the specified macros
+                            unsigned int rndpat_start = track_event.play_time;
+                            
+                            // Calculate the maximum possible length (longest macro)
+                            unsigned int max_length = 0;
+                            std::vector<uint16_t> possible_macros;
+                            
+                            // Parse macro track IDs from rndpat arguments (format: "*300", "*301", etc.)
+                            for(size_t i = 1; i < tag.size(); i++)
+                            {
+                                const std::string& arg = tag[i];
+                                if(!arg.empty() && arg[0] == '*')
+                                {
+                                    int macro_id = std::strtol(arg.c_str() + 1, nullptr, 10);
+                                    possible_macros.push_back(macro_id);
+                                    
+                                    // Calculate length of this macro
+                                    try
+                                    {
+                                        unsigned int macro_length = GetSubroutineLengthHelper(*song, macro_id, 10);
+                                        if(macro_length > max_length)
+                                            max_length = macro_length;
+                                    }
+                                    catch(std::exception&)
+                                    {
+                                        // Macro doesn't exist, skip
+                                    }
+                                }
+                            }
+                            
+                            unsigned int rndpat_end = rndpat_start + max_length;
+                            
+                            if(local_ticks >= rndpat_start && local_ticks < rndpat_end)
+                            {
+                                // We're inside an rndpat call - check all possible macro tracks
+                                // to see which one matches the current tick position
+                                unsigned int rndpat_offset = local_ticks - rndpat_start;
+                                
+                                for(uint16_t macro_id : possible_macros)
+                                {
+                                    try
+                                    {
+                                        Track& macro_track = song->get_track(macro_id);
+                                        Track_Info macro_info = Track_Info_Generator(*song, macro_track);
+                                        
+                                        // Check if current offset matches events in this macro
+                                        int macro_offset_loop = 0;
+                                        if(rndpat_offset > macro_info.length && macro_info.loop_length)
+                                            macro_offset_loop = ((rndpat_offset - macro_info.loop_start) / macro_info.loop_length) * macro_info.loop_length;
+                                        
+                                        auto macro_event_it = macro_info.events.lower_bound(rndpat_offset - macro_offset_loop);
+                                        if(macro_event_it != macro_info.events.begin())
+                                        {
+                                            --macro_event_it;
+                                            auto macro_event = macro_event_it->second;
+                                            for(auto && ref : macro_event.references)
+                                            {
+                                                m_highlights[ref->get_line()].insert(ref->get_column());
+                                            }
+                                            // Found matching macro, break (only one should match)
+                                            break;
+                                        }
+                                    }
+                                    catch(std::exception&)
+                                    {
+                                        // Macro doesn't exist, skip
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch(std::exception&)
+                    {
+                        // Platform command doesn't exist or error parsing, skip
+                        continue;
                     }
                 }
             }
