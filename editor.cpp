@@ -25,6 +25,7 @@
 #include <map>
 #include <memory>
 #include <cstdlib>
+#include <climits>
 
 Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false),
@@ -723,12 +724,19 @@ void Editor::ShowTrackPositions()
         map = *tracks;
 
     auto player = m_songManager->get_player();
-    if(player != nullptr && !player->get_finished())
-        ticks = player->get_driver()->get_player_ticks();
+    if(player == nullptr || player->get_finished())
+    {
+        // Player not active, clear highlights
+        m_highlights.clear();
+        return;
+    }
+    
+    ticks = player->get_driver()->get_player_ticks();
 
     auto song = m_songManager->get_song();
     if(song == nullptr)
     {
+        m_highlights.clear();
         return;
     }
 
@@ -839,7 +847,8 @@ void Editor::ShowTrackPositions()
                         {
                             // This is an rndpat command - check if we're within its duration
                             // rndpat randomly selects one of the specified macros
-                            unsigned int rndpat_start = track_event.play_time;
+                            // track_event.play_time is relative to track start, need to adjust for loops
+                            unsigned int rndpat_start_absolute = track_event.play_time;
                             
                             // Calculate the maximum possible length (longest macro)
                             unsigned int max_length = 0;
@@ -868,13 +877,56 @@ void Editor::ShowTrackPositions()
                                 }
                             }
                             
-                            unsigned int rndpat_end = rndpat_start + max_length;
+                            // Check if we're inside this rndpat call in the current loop iteration
+                            // rndpat_start_absolute is the play_time from the first iteration
+                            // local_ticks is already adjusted for loops (ticks - offset)
                             
-                            if(local_ticks >= rndpat_start && local_ticks < rndpat_end)
+                            // If rndpat is before the loop point, check normally
+                            // If rndpat is after the loop point, it repeats in each loop iteration
+                            bool in_rndpat = false;
+                            unsigned int rndpat_offset = 0;
+                            
+                            if(info.loop_length > 0 && rndpat_start_absolute >= info.loop_start)
+                            {
+                                // rndpat is in the loop section - check if we're in it in the current loop iteration
+                                // local_ticks is already adjusted for loops, so we need to check
+                                // if we're in the loop section and at the rndpat position within the loop
+                                if(local_ticks >= info.loop_start)
+                                {
+                                    // We're in the loop section
+                                    unsigned int position_in_loop = local_ticks - info.loop_start;
+                                    unsigned int rndpat_position_in_loop = rndpat_start_absolute - info.loop_start;
+                                    
+                                    if(position_in_loop >= rndpat_position_in_loop && 
+                                       position_in_loop < rndpat_position_in_loop + max_length)
+                                    {
+                                        in_rndpat = true;
+                                        rndpat_offset = position_in_loop - rndpat_position_in_loop;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // rndpat is before the loop point - check if we're in the first iteration
+                                // Only check if we haven't reached the loop point yet
+                                if(local_ticks < info.loop_start && 
+                                   local_ticks >= rndpat_start_absolute && 
+                                   local_ticks < rndpat_start_absolute + max_length)
+                                {
+                                    in_rndpat = true;
+                                    rndpat_offset = local_ticks - rndpat_start_absolute;
+                                }
+                            }
+                            
+                            if(in_rndpat)
                             {
                                 // We're inside an rndpat call - check all possible macro tracks
                                 // to see which one matches the current tick position
-                                unsigned int rndpat_offset = local_ticks - rndpat_start;
+                                // Since rndpat randomly selects a macro, we need to check all
+                                // possible macros and find the one whose events align with the current position
+                                
+                                uint16_t best_macro = 0;
+                                unsigned int best_match_score = 0;
                                 
                                 for(uint16_t macro_id : possible_macros)
                                 {
@@ -883,12 +935,73 @@ void Editor::ShowTrackPositions()
                                         Track& macro_track = song->get_track(macro_id);
                                         Track_Info macro_info = Track_Info_Generator(*song, macro_track);
                                         
-                                        // Check if current offset matches events in this macro
+                                        // Calculate offset into macro, accounting for loops
                                         int macro_offset_loop = 0;
-                                        if(rndpat_offset > macro_info.length && macro_info.loop_length)
-                                            macro_offset_loop = ((rndpat_offset - macro_info.loop_start) / macro_info.loop_length) * macro_info.loop_length;
+                                        unsigned int adjusted_offset = rndpat_offset;
                                         
-                                        auto macro_event_it = macro_info.events.lower_bound(rndpat_offset - macro_offset_loop);
+                                        if(adjusted_offset > macro_info.length && macro_info.loop_length)
+                                            macro_offset_loop = ((adjusted_offset - macro_info.loop_start) / macro_info.loop_length) * macro_info.loop_length;
+                                        
+                                        adjusted_offset -= macro_offset_loop;
+                                        
+                                        // Check if this offset is within the macro's valid range
+                                        if(adjusted_offset <= macro_info.length)
+                                        {
+                                            // Find the event at or before this position
+                                            auto macro_event_it = macro_info.events.lower_bound(adjusted_offset);
+                                            if(macro_event_it != macro_info.events.begin())
+                                            {
+                                                --macro_event_it;
+                                                auto macro_event = macro_event_it->second;
+                                                unsigned int event_start = macro_event_it->first;
+                                                unsigned int event_end = event_start + macro_event.on_time + macro_event.off_time;
+                                                
+                                                // Calculate how well this macro matches
+                                                // Score is higher if we're within an event's duration
+                                                unsigned int match_score = 0;
+                                                if(adjusted_offset >= event_start && adjusted_offset < event_end)
+                                                {
+                                                    // We're within an event - this is a strong match
+                                                    match_score = event_end - adjusted_offset; // Closer to start = higher score
+                                                }
+                                                else if(adjusted_offset >= event_start)
+                                                {
+                                                    // We're past the event but close
+                                                    match_score = 1;
+                                                }
+                                                
+                                                if(match_score > best_match_score)
+                                                {
+                                                    best_match_score = match_score;
+                                                    best_macro = macro_id;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    catch(std::exception&)
+                                    {
+                                        // Macro doesn't exist, skip
+                                        continue;
+                                    }
+                                }
+                                
+                                // Highlight the best matching macro
+                                if(best_macro != 0)
+                                {
+                                    try
+                                    {
+                                        Track& macro_track = song->get_track(best_macro);
+                                        Track_Info macro_info = Track_Info_Generator(*song, macro_track);
+                                        
+                                        int macro_offset_loop = 0;
+                                        unsigned int adjusted_offset = rndpat_offset;
+                                        
+                                        if(adjusted_offset > macro_info.length && macro_info.loop_length)
+                                            macro_offset_loop = ((adjusted_offset - macro_info.loop_start) / macro_info.loop_length) * macro_info.loop_length;
+                                        
+                                        adjusted_offset -= macro_offset_loop;
+                                        
+                                        auto macro_event_it = macro_info.events.lower_bound(adjusted_offset);
                                         if(macro_event_it != macro_info.events.begin())
                                         {
                                             --macro_event_it;
@@ -897,14 +1010,11 @@ void Editor::ShowTrackPositions()
                                             {
                                                 m_highlights[ref->get_line()].insert(ref->get_column());
                                             }
-                                            // Found matching macro, break (only one should match)
-                                            break;
                                         }
                                     }
                                     catch(std::exception&)
                                     {
-                                        // Macro doesn't exist, skip
-                                        continue;
+                                        // Ignore errors
                                     }
                                 }
                             }
@@ -922,6 +1032,240 @@ void Editor::ShowTrackPositions()
         {
             // Track might not exist, skip it
         }
+    }
+    
+    // Also check all macro tracks (track_id >= 16) to see if we're currently playing one
+    // This handles rndpat sequences - we check which macro track matches the current position
+    // and if it's referenced by an rndpat command, we highlight it
+    try
+    {
+        Track_Map& all_tracks = song->get_track_map();
+        
+        // First, collect all active rndpat commands and their possible macros
+        std::map<uint16_t, std::vector<uint16_t>> active_rndpat_macros; // track_id -> list of possible macro IDs
+        
+        for(auto track_it = map.begin(); track_it != map.end(); track_it++)
+        {
+            try
+            {
+                Track& track = song->get_track(track_it->first);
+                auto& info = track_it->second;
+                int offset = 0;
+                
+                if(ticks > info.length && info.loop_length)
+                    offset = ((ticks - info.loop_start) / info.loop_length) * info.loop_length;
+                
+                unsigned int local_ticks = ticks - offset;
+                unsigned int event_count = track.get_event_count();
+                
+                for(unsigned int pos = 0; pos < event_count; pos++)
+                {
+                    auto track_event = track.get_event(pos);
+                    if(track_event.type == Event::PLATFORM)
+                    {
+                        try
+                        {
+                            const Tag& tag = song->get_platform_command(track_event.param);
+                            if(!tag.empty() && tag[0] == "rndpat")
+                            {
+                                unsigned int rndpat_start_absolute = track_event.play_time;
+                                unsigned int max_length = 0;
+                                std::vector<uint16_t> possible_macros;
+                                
+                                for(size_t i = 1; i < tag.size(); i++)
+                                {
+                                    const std::string& arg = tag[i];
+                                    if(!arg.empty() && arg[0] == '*')
+                                    {
+                                        int macro_id = std::strtol(arg.c_str() + 1, nullptr, 10);
+                                        possible_macros.push_back(macro_id);
+                                        
+                                        try
+                                        {
+                                            unsigned int macro_length = GetSubroutineLengthHelper(*song, macro_id, 10);
+                                            if(macro_length > max_length)
+                                                max_length = macro_length;
+                                        }
+                                        catch(std::exception&) {}
+                                    }
+                                }
+                                
+                                // Check if we're inside this rndpat call
+                                bool in_rndpat = false;
+                                if(info.loop_length > 0 && rndpat_start_absolute >= info.loop_start)
+                                {
+                                    if(local_ticks >= info.loop_start)
+                                    {
+                                        unsigned int position_in_loop = local_ticks - info.loop_start;
+                                        unsigned int rndpat_position_in_loop = rndpat_start_absolute - info.loop_start;
+                                        
+                                        if(position_in_loop >= rndpat_position_in_loop && 
+                                           position_in_loop < rndpat_position_in_loop + max_length)
+                                        {
+                                            in_rndpat = true;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if(local_ticks < info.loop_start && 
+                                       local_ticks >= rndpat_start_absolute && 
+                                       local_ticks < rndpat_start_absolute + max_length)
+                                    {
+                                        in_rndpat = true;
+                                    }
+                                }
+                                
+                                if(in_rndpat)
+                                {
+                                    // Store the possible macros for this rndpat
+                                    active_rndpat_macros[track_it->first] = possible_macros;
+                                }
+                            }
+                        }
+                        catch(std::exception&) {}
+                    }
+                }
+            }
+            catch(std::exception&) {}
+        }
+        
+        // Now check all macro tracks to see which one matches the current position
+        for(auto& track_pair : all_tracks)
+        {
+            uint16_t macro_track_id = track_pair.first;
+            if(macro_track_id < 16)
+                continue; // Only check macro tracks
+            
+            try
+            {
+                Track& macro_track = track_pair.second;
+                Track_Info macro_info = Track_Info_Generator(*song, macro_track);
+                
+                // Check if this macro track has events that match the current tick position
+                // We need to check if we're inside a call to this macro
+                // Calculate the offset into the macro based on when it was called
+                
+                // For each track that might have called this macro (via rndpat or JUMP)
+                for(auto track_it = map.begin(); track_it != map.end(); track_it++)
+                {
+                    auto& info = track_it->second;
+                    int offset = 0;
+                    
+                    if(ticks > info.length && info.loop_length)
+                        offset = ((ticks - info.loop_start) / info.loop_length) * info.loop_length;
+                    
+                    unsigned int local_ticks = ticks - offset;
+                    
+                    // Check if this macro is referenced by an active rndpat
+                    auto rndpat_it = active_rndpat_macros.find(track_it->first);
+                    if(rndpat_it != active_rndpat_macros.end())
+                    {
+                        // Check if this macro is one of the possible macros
+                        bool is_possible_macro = false;
+                        for(uint16_t possible_id : rndpat_it->second)
+                        {
+                            if(possible_id == macro_track_id)
+                            {
+                                is_possible_macro = true;
+                                break;
+                            }
+                        }
+                        
+                        if(is_possible_macro)
+                        {
+                            // Calculate the offset into the rndpat call
+                            try
+                            {
+                                Track& track = song->get_track(track_it->first);
+                                unsigned int event_count = track.get_event_count();
+                                
+                                for(unsigned int pos = 0; pos < event_count; pos++)
+                                {
+                                    auto track_event = track.get_event(pos);
+                                    if(track_event.type == Event::PLATFORM)
+                                    {
+                                        try
+                                        {
+                                            const Tag& tag = song->get_platform_command(track_event.param);
+                                            if(!tag.empty() && tag[0] == "rndpat")
+                                            {
+                                                unsigned int rndpat_start_absolute = track_event.play_time;
+                                                unsigned int rndpat_offset = 0;
+                                                
+                                                if(info.loop_length > 0 && rndpat_start_absolute >= info.loop_start)
+                                                {
+                                                    if(local_ticks >= info.loop_start)
+                                                    {
+                                                        unsigned int position_in_loop = local_ticks - info.loop_start;
+                                                        unsigned int rndpat_position_in_loop = rndpat_start_absolute - info.loop_start;
+                                                        
+                                                        if(position_in_loop >= rndpat_position_in_loop)
+                                                        {
+                                                            rndpat_offset = position_in_loop - rndpat_position_in_loop;
+                                                        }
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    if(local_ticks >= rndpat_start_absolute)
+                                                    {
+                                                        rndpat_offset = local_ticks - rndpat_start_absolute;
+                                                    }
+                                                }
+                                                
+                                                if(rndpat_offset > 0)
+                                                {
+                                                    // Check if this macro's events match the offset
+                                                    int macro_offset_loop = 0;
+                                                    unsigned int adjusted_offset = rndpat_offset;
+                                                    
+                                                    if(adjusted_offset > macro_info.length && macro_info.loop_length)
+                                                        macro_offset_loop = ((adjusted_offset - macro_info.loop_start) / macro_info.loop_length) * macro_info.loop_length;
+                                                    
+                                                    adjusted_offset -= macro_offset_loop;
+                                                    
+                                                    if(adjusted_offset <= macro_info.length)
+                                                    {
+                                                        auto macro_event_it = macro_info.events.lower_bound(adjusted_offset);
+                                                        if(macro_event_it != macro_info.events.begin())
+                                                        {
+                                                            --macro_event_it;
+                                                            auto macro_event = macro_event_it->second;
+                                                            unsigned int event_start = macro_event_it->first;
+                                                            unsigned int event_end = event_start + macro_event.on_time + macro_event.off_time;
+                                                            
+                                                            if(adjusted_offset >= event_start && adjusted_offset < event_end)
+                                                            {
+                                                                // This macro matches! Highlight it
+                                                                for(auto && ref : macro_event.references)
+                                                                {
+                                                                    m_highlights[ref->get_line()].insert(ref->get_column());
+                                                                }
+                                                                // Found a match, break out of loops
+                                                                goto found_macro_match;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        catch(std::exception&) {}
+                                    }
+                                }
+                            }
+                            catch(std::exception&) {}
+                        }
+                    }
+                }
+            }
+            catch(std::exception&) {}
+        }
+        found_macro_match:;
+    }
+    catch(std::exception&)
+    {
+        // Error, skip
     }
 }
 
