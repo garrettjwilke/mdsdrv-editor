@@ -132,6 +132,7 @@ void PatternEditor::Render() {
             }
             
             std::string button_id = "##Step" + std::to_string(i);
+            std::string popup_id = "NotePopup" + std::to_string(i);
             
             // Style the button based on whether it's a rest or a note
             if (note < 0) {
@@ -145,28 +146,50 @@ void PatternEditor::Render() {
             }
             
             if (ImGui::Button((button_label + button_id).c_str(), ImVec2(button_width, button_height))) {
-                // Cycle through: rest (-1) -> C (0) -> C# (1) -> ... -> B (11) -> rest (-1)
-                if (ImGui::GetIO().KeyShift) {
-                    // Shift+click: go backwards
-                    m_pattern[i]--;
-                    if (m_pattern[i] < -1) {
-                        m_pattern[i] = NOTE_COUNT - 1;
-                    }
-                } else {
-                    // Normal click: go forwards
-                    m_pattern[i]++;
-                    if (m_pattern[i] >= NOTE_COUNT) {
-                        m_pattern[i] = -1;
-                    }
-                }
-                UpdateMML();
+                ImGui::OpenPopup(popup_id.c_str());
             }
             
             ImGui::PopStyleColor(3);
             
-            // Show step number as tooltip
+            // Popup menu for note selection
+            if (ImGui::BeginPopup(popup_id.c_str())) {
+                // Rest option
+                bool is_rest = (note < 0);
+                if (ImGui::Selectable("Rest", is_rest)) {
+                    m_pattern[i] = -1;
+                    UpdateMML();
+                    ImGui::CloseCurrentPopup();
+                }
+                if (is_rest) {
+                    ImGui::SetItemDefaultFocus();
+                }
+                
+                ImGui::Separator();
+                
+                // All note options
+                for (int n = 0; n < NOTE_COUNT; ++n) {
+                    bool is_selected = (note == n);
+                    std::string note_label = NOTE_NAMES[n];
+                    if (ImGui::Selectable(note_label.c_str(), is_selected)) {
+                        m_pattern[i] = n;
+                        UpdateMML();
+                        ImGui::CloseCurrentPopup();
+                    }
+                    if (is_selected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                
+                ImGui::EndPopup();
+            }
+            
+            // Show step number and current note as tooltip
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Step %d", i + 1);
+                if (note < 0) {
+                    ImGui::SetTooltip("Step %d: Rest", i + 1);
+                } else {
+                    ImGui::SetTooltip("Step %d: %s", i + 1, NOTE_NAMES[note]);
+                }
             }
         }
         
@@ -183,7 +206,7 @@ void PatternEditor::Render() {
         
         // Help text
         ImGui::Separator();
-        ImGui::TextWrapped("Click pattern buttons to cycle through notes (Rest -> C -> C# -> ... -> B -> Rest). Hold Shift and click to cycle backwards.");
+        ImGui::TextWrapped("Click pattern buttons to open a menu and select a note. Right-click or click outside to close the menu.");
     }
     ImGui::End();
 }
