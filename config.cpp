@@ -21,6 +21,14 @@ int ClampDimension(int value) {
     if (value > maxSize) return maxSize;
     return value;
 }
+
+float ClampUiScale(float value) {
+    const float minScale = 0.5f;
+    const float maxScale = 3.0f;
+    if (value < minScale) return minScale;
+    if (value > maxScale) return maxScale;
+    return value;
+}
 } // namespace
 
 std::filesystem::path GetUserConfigPath() {
@@ -60,6 +68,9 @@ UserConfig LoadUserConfig() {
                 if (value > 0) {
                     config.windowHeight = ClampDimension(value);
                 }
+            } else if (line.rfind("ui_scale=", 0) == 0) {
+                float value = std::stof(line.substr(9));
+                config.uiScale = ClampUiScale(value);
             }
         }
     } catch (...) {
@@ -82,6 +93,7 @@ void SaveUserConfig(const UserConfig& config) {
         out << "theme=" << config.theme << "\n";
         out << "window_width=" << ClampDimension(config.windowWidth) << "\n";
         out << "window_height=" << ClampDimension(config.windowHeight) << "\n";
+        out << "ui_scale=" << ClampUiScale(config.uiScale) << "\n";
     } catch (...) {
         // Ignore save errors to avoid crashing the UI over config persistence
     }

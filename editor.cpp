@@ -21,7 +21,8 @@ Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false),
                    m_showConfirmNewDialog(false), m_showConfirmOpenDialog(false),
                    m_pendingNewFile(false), m_pendingOpenFile(false),
-                   m_showThemeWindow(false), m_themeRequestFocus(false), m_themeSelection(0) {
+                   m_showThemeWindow(false), m_themeRequestFocus(false), m_themeSelection(0),
+                   m_uiScale(1.0f) {
     m_text = "@3 psg 15\n\nH @3 o3 l4 a b c d\n";
     m_songManager = std::make_unique<Song_Manager>();
     m_exportWindow = std::make_unique<ExportWindow>();
@@ -34,12 +35,14 @@ Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
     // Load user config (theme selection and window state)
     UserConfig userConfig = LoadUserConfig();
     m_themeSelection = userConfig.theme;
+    m_uiScale = userConfig.uiScale;
     switch (m_themeSelection) {
         case 0: Theme::ApplyDark(); break;
         case 1: Theme::ApplyLight(); break;
         case 2: Theme::ApplyClassic(); break;
         default: Theme::ApplyDark(); break;
     }
+    ImGui::GetIO().FontGlobalScale = m_uiScale;
     
     // Set callback for creating new PCM tool windows
     PCMToolWindow::SetCreateWindowCallback([this](std::shared_ptr<PCMToolWindow> window) {
@@ -464,7 +467,7 @@ void Editor::RenderMDSBinExportWindow() {
 void Editor::RenderThemeWindow() {
     if (!m_showThemeWindow) return;
 
-    ImGui::SetNextWindowSize(ImVec2(320, 180), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(420, 260), ImGuiCond_FirstUseEver);
     if (m_themeRequestFocus) {
         ImGui::SetNextWindowFocus();
         m_themeRequestFocus = false;
@@ -478,6 +481,7 @@ void Editor::RenderThemeWindow() {
         changed |= ImGui::RadioButton("High-contrast Dark", &m_themeSelection, 0);
         changed |= ImGui::RadioButton("Light", &m_themeSelection, 1);
         changed |= ImGui::RadioButton("Classic", &m_themeSelection, 2);
+        changed |= ImGui::SliderFloat("UI Scale", &m_uiScale, 0.5f, 2.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 
         if (changed) {
             switch (m_themeSelection) {
@@ -486,9 +490,11 @@ void Editor::RenderThemeWindow() {
                 case 2: Theme::ApplyClassic(); break;
                 default: Theme::ApplyDark(); break;
             }
+            ImGui::GetIO().FontGlobalScale = m_uiScale;
             // Persist the updated theme without losing window dimensions
             UserConfig cfg = LoadUserConfig();
             cfg.theme = m_themeSelection;
+            cfg.uiScale = m_uiScale;
             SaveUserConfig(cfg);
         }
 
