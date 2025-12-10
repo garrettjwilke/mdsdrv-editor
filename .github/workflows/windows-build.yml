@@ -1,0 +1,53 @@
+name: Windows Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo (no submodules!)
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Verify submodules are NOT pulled
+        shell: pwsh
+        run: |
+          Write-Host "imgui exists? " (Test-Path deps/imgui)
+          Write-Host "mmlgui exists? " (Test-Path deps/mmlgui)
+
+      - name: Install CMake + Ninja
+        uses: lukka/get-cmake@latest
+
+      # Build GLFW from source so find_package(glfw3 REQUIRED) works
+      - name: Build + Install GLFW
+        shell: pwsh
+        run: |
+          git clone https://github.com/glfw/glfw.git --depth 1
+          cd glfw
+          cmake -B build -S . -G Ninja -DGLFW_BUILD_DOCS=OFF -DGLFW_BUILD_EXAMPLES=OFF -DGLFW_BUILD_TESTS=OFF
+          cmake --build build --config Release
+          cmake --install build --prefix "C:/glfw"
+
+      - name: Configure CMake (this is where your submodule-update commands run)
+        shell: pwsh
+        run: |
+          cmake -S . -B build `
+            -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -Dglfw3_DIR="C:/glfw/lib/cmake/glfw3"
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdsdrv-editor-windows
+          path: build/mdsdrv-editor.exe
