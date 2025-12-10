@@ -33,12 +33,16 @@ set(SOURCES
     window.cpp
     editor.cpp
     theme.cpp
+    export_window.cpp
+    pcm_tool_window.cpp
 )
 
 set(HEADERS
     window.h
     editor.h
     theme.h
+    export_window.h
+    pcm_tool_window.h
 )
 
 # ImGui sources - common files

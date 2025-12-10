@@ -9,6 +9,8 @@
 #include "song_manager.h"
 #include "audio_manager.h"
 #include "imguifilesystem.h"
+#include "export_window.h"
+#include "pcm_tool_window.h"
 
 Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_showOpenDialog(false), m_showSaveDialog(false), m_showSaveAsDialog(false),
@@ -16,6 +18,14 @@ Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_pendingNewFile(false), m_pendingOpenFile(false) {
     m_text = "// Welcome to MDSDRV Editor\n// Start typing...\n";
     m_songManager = std::make_unique<Song_Manager>();
+    m_exportWindow = std::make_unique<ExportWindow>();
+    m_pcmToolWindow = std::make_unique<PCMToolWindow>();
+    
+    // Set callback for creating new PCM tool windows
+    PCMToolWindow::SetCreateWindowCallback([this](std::shared_ptr<PCMToolWindow> window) {
+        m_pcmToolWindows.push_back(window);
+    });
+    
     UpdateBuffer();
 }
 
@@ -29,6 +39,8 @@ void Editor::Render() {
     RenderStatusBar();
     RenderFileDialogs();
     RenderConfirmDialogs();
+    RenderExportWindow();
+    RenderPCMToolWindow();
 }
 
 void Editor::RenderMenuBar() {
@@ -80,6 +92,21 @@ void Editor::RenderMenuBar() {
         if (ImGui::BeginMenu("View")) {
             if (ImGui::MenuItem("Theme")) {
                 // TODO: Theme selector
+            }
+            ImGui::EndMenu();
+        }
+        
+        if (ImGui::BeginMenu("Tools")) {
+            if (ImGui::MenuItem("mdslink export...")) {
+                if (m_exportWindow) {
+                    m_exportWindow->SetOpen(true);
+                }
+            }
+            if (ImGui::MenuItem("PCM Tool...")) {
+                if (m_pcmToolWindow) {
+                    m_pcmToolWindow->SetOpen(true);
+                    // Focus will be set in the next frame via m_request_focus
+                }
             }
             ImGui::EndMenu();
         }
@@ -385,6 +412,31 @@ void Editor::RenderConfirmDialogs() {
         }
         
         ImGui::EndPopup();
+    }
+}
+
+void Editor::RenderExportWindow() {
+    if (m_exportWindow) {
+        m_exportWindow->Render();
+    }
+}
+
+void Editor::RenderPCMToolWindow() {
+    // Render main PCM tool window
+    if (m_pcmToolWindow) {
+        m_pcmToolWindow->Render();
+    }
+    
+    // Render all additional PCM tool windows
+    // Remove closed windows from the list
+    auto it = m_pcmToolWindows.begin();
+    while (it != m_pcmToolWindows.end()) {
+        if ((*it)->IsOpen()) {
+            (*it)->Render();
+            ++it;
+        } else {
+            it = m_pcmToolWindows.erase(it);
+        }
     }
 }
 
