@@ -595,6 +595,9 @@ void Editor::RenderPatternEditor() {
         if (modified_text != m_text && !m_patternEditor->HasUnsavedChanges()) {
             // Changes were applied, update the editor text
             m_text = modified_text;
+            // Update the buffer so changes appear in the editor window
+            UpdateBuffer();
+            m_unsavedChanges = true;
         }
     }
 }
