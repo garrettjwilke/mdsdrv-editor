@@ -73,6 +73,7 @@ std::vector<PatternEditor::PatternInfo> PatternEditor::ScanForPatterns(const std
     // Find all pattern macros (*701 through *799)
     // Pattern format: *701 @1 o3 l4 a b c d | e f g a; (semicolon optional)
     // We'll find each *number and extract content until next *number or end
+    // IMPORTANT: Only match macros that start at the beginning of a line (after optional whitespace)
     std::regex pattern_macro_regex(R"(\*(\d+))");
     std::sregex_iterator iter(text.begin(), text.end(), pattern_macro_regex);
     std::sregex_iterator end;
@@ -93,24 +94,41 @@ std::vector<PatternEditor::PatternInfo> PatternEditor::ScanForPatterns(const std
             continue; // Skip macros outside the 701-799 range
         }
         
-        // Find the content after this macro number - patterns must be on a single line
-        size_t macro_pos = match.position() + match.length();
-        std::string pattern_content;
-        
-        // Find the end of the line containing this macro
+        // Find the start of the line containing this macro
+        size_t macro_pos = match.position();
         size_t line_start = macro_pos;
         // Go back to find the start of the line
         while (line_start > 0 && text[line_start - 1] != '\n' && text[line_start - 1] != '\r') {
             line_start--;
         }
+        
+        // Check if the macro is at the start of the line (allowing only whitespace before it)
+        // Skip if there are non-whitespace characters before the macro on the same line
+        bool is_at_line_start = true;
+        for (size_t i = line_start; i < macro_pos; ++i) {
+            if (!std::isspace(text[i])) {
+                is_at_line_start = false;
+                break;
+            }
+        }
+        
+        if (!is_at_line_start) {
+            continue; // Skip macros that are not at the start of the line
+        }
+        
+        // Find the content after this macro number - patterns must be on a single line
+        size_t macro_end_pos = macro_pos + match.length();
+        std::string pattern_content;
+        
+        // Find the end of the line containing this macro
+        size_t line_end = macro_end_pos;
         // Find the end of the line
-        size_t line_end = macro_pos;
         while (line_end < text.length() && text[line_end] != '\n' && text[line_end] != '\r') {
             line_end++;
         }
         
         // Extract content from after macro number to end of line
-        size_t content_start = macro_pos;
+        size_t content_start = macro_end_pos;
         while (content_start < line_end && std::isspace(text[content_start])) {
             content_start++;
         }
@@ -1299,17 +1317,17 @@ void PatternEditor::Render() {
         ImGui::Text("MML Output:");
         ImGui::InputTextMultiline("##MMLOutput", m_mml_buffer.data(), 
                                   m_mml_buffer.size(), 
-                                  ImVec2(-1, 100), 
+                                  ImVec2(-1, 180), 
                                   ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_NoUndoRedo);
         
         // Add a copy button for convenience (underneath the text box)
-        if (ImGui::Button("Copy")) {
+        if (ImGui::Button("Copy MML to clipboard")) {
             ImGui::SetClipboardText(m_mml_output.c_str());
         }
         
         // Help text
-        ImGui::Separator();
-        ImGui::TextWrapped("Click pattern buttons to open a menu and select a note. Right-click or click outside to close the menu.");
+        //ImGui::Separator();
+        //ImGui::TextWrapped("Click pattern buttons to open a menu and select a note. Right-click or click outside to close the menu.");
     }
     ImGui::End();
 }
