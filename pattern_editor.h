@@ -12,6 +12,7 @@ public:
     void Render();
     bool IsOpen() const { return m_open; }
     void SetOpen(bool open) { m_open = open; if (open) m_request_focus = true; }
+    void SetEditorText(const std::string& text) { m_editor_text = text; }
 
 private:
     void UpdateMML();
@@ -22,6 +23,7 @@ private:
     int m_instrument;       // Instrument number (-1 = none, 1+ = instrument number)
     int m_octave;           // Starting octave (-1 = none, 2-9 = octave number)
     std::vector<int> m_pattern;  // Pattern data: -2 = tie, -1 = rest, 0-11 = C to B
+    std::vector<bool> m_is_flat;  // Whether each note is flat (true) or sharp (false), only used for notes that can be either
     std::vector<int> m_octave_changes;  // Octave changes: -1 = lower (<), 0 = none, 1 = raise (>)
     
     int GetStepsPerBar() const;  // Calculate steps per bar based on note length
@@ -29,9 +31,22 @@ private:
     
     std::string m_mml_output;
     std::vector<char> m_mml_buffer;
+    std::string m_editor_text;  // Current editor text for pattern scanning
     
     bool m_open;
     bool m_request_focus;
+    
+    // Pattern scanning and loading
+    struct PatternInfo {
+        std::string content;
+        int bars;
+        int note_length;
+        int instrument;
+        int octave;
+        int macro_number;  // The macro number (701, 702, etc.) - pattern number is macro_number - 700
+    };
+    std::vector<PatternInfo> ScanForPatterns(const std::string& text);
+    bool LoadPattern(const PatternInfo& pattern);
     
     // Note names for display
     static const char* NOTE_NAMES[];

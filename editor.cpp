@@ -575,6 +575,8 @@ void Editor::RenderPCMToolWindow() {
 
 void Editor::RenderPatternEditor() {
     if (m_patternEditor) {
+        // Update the pattern editor with current editor text for pattern scanning
+        m_patternEditor->SetEditorText(m_text);
         m_patternEditor->Render();
     }
 }
