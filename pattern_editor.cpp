@@ -11,15 +11,34 @@ const char* PatternEditor::NOTE_NAMES[] = {
 const int PatternEditor::NOTE_COUNT = 12;
 
 PatternEditor::PatternEditor() 
-    : m_pattern_length(16)
+    : m_pattern_length(1)
     , m_note_length(4)
+    , m_instrument(-1)
+    , m_octave(-1)
     , m_open(false)
     , m_request_focus(false)
 {
-    m_pattern.resize(m_pattern_length, -1); // Initialize with rests
-    m_octave_changes.resize(m_pattern_length, 0); // Initialize with no octave changes
+    int total_steps = GetTotalSteps();
+    m_pattern.resize(total_steps, -1); // Initialize with rests
+    m_octave_changes.resize(total_steps, 0); // Initialize with no octave changes
     m_mml_buffer.resize(4096, 0); // Allocate buffer for MML output
     UpdateMML();
+}
+
+int PatternEditor::GetStepsPerBar() const {
+    // In MML, the note length value represents how many of that note fit in a whole note
+    // In a 4/4 bar (4 beats), the number of steps per bar equals the note length value:
+    // - l1 (whole note): 1 step per bar
+    // - l2 (half note): 2 steps per bar
+    // - l4 (quarter note): 4 steps per bar
+    // - l8 (eighth note): 8 steps per bar
+    // - l16 (sixteenth note): 16 steps per bar
+    // - l32 (thirty-second note): 32 steps per bar
+    return m_note_length;
+}
+
+int PatternEditor::GetTotalSteps() const {
+    return m_pattern_length * GetStepsPerBar();
 }
 
 PatternEditor::~PatternEditor() {
@@ -28,11 +47,24 @@ PatternEditor::~PatternEditor() {
 void PatternEditor::UpdateMML() {
     std::ostringstream oss;
     
+    // Output instrument number if specified (must be >= 1)
+    if (m_instrument >= 1) {
+        oss << "@" << m_instrument << " ";
+    }
+    
+    // Output starting octave if specified (must be 2-9)
+    if (m_octave >= 2 && m_octave <= 9) {
+        oss << "o" << m_octave << " ";
+    }
+    
     // Output the default note length command
     oss << "l" << m_note_length;
     
     // Output all notes/rests without length suffixes
-    for (int i = 0; i < m_pattern_length; ++i) {
+    int total_steps = GetTotalSteps();
+    int steps_per_bar = GetStepsPerBar();
+    
+    for (int i = 0; i < total_steps; ++i) {
         oss << " ";
         
         // Output octave change if any
@@ -57,6 +89,11 @@ void PatternEditor::UpdateMML() {
         } else {
             // Output a rest
             oss << "r";
+        }
+        
+        // Add bar separator after each complete bar (except the last one)
+        if (m_pattern_length > 1 && (i + 1) % steps_per_bar == 0 && (i + 1) < total_steps) {
+            oss << " |";
         }
     }
     
@@ -99,15 +136,21 @@ void PatternEditor::Render() {
     }
     
     if (ImGui::Begin("Pattern Editor", &m_open)) {
-        // Pattern length selector
-        ImGui::Text("Pattern Length:");
+        // Calculate total steps once at the start
+        int total_steps = GetTotalSteps();
+        
+        // Pattern length selector (in bars)
+        ImGui::Text("Pattern Length (bars):");
         ImGui::SameLine();
         if (ImGui::InputInt("##PatternLength", &m_pattern_length, 1, 1)) {
-            m_pattern_length = std::max(1, std::min(64, m_pattern_length));
-            m_pattern.resize(m_pattern_length, -1);
-            m_octave_changes.resize(m_pattern_length, 0);
+            m_pattern_length = std::max(1, std::min(16, m_pattern_length));
+            total_steps = GetTotalSteps();
+            m_pattern.resize(total_steps, -1);
+            m_octave_changes.resize(total_steps, 0);
             UpdateMML();
         }
+        ImGui::SameLine();
+        ImGui::Text("(%d steps)", total_steps);
         
         // Note length selector
         ImGui::Text("Note Length:");
@@ -123,7 +166,61 @@ void PatternEditor::Render() {
         }
         if (ImGui::Combo("##NoteLength", &current_index, note_length_names, 6)) {
             m_note_length = note_length_values[current_index];
+            // Resize pattern arrays when note length changes
+            total_steps = GetTotalSteps();
+            m_pattern.resize(total_steps, -1);
+            m_octave_changes.resize(total_steps, 0);
             UpdateMML();
+        }
+        
+        // Instrument selector
+        ImGui::Text("Instrument:");
+        ImGui::SameLine();
+        bool has_instrument = (m_instrument >= 1);
+        if (ImGui::Checkbox("##InstrumentEnabled", &has_instrument)) {
+            if (has_instrument && m_instrument < 1) {
+                m_instrument = 1; // Default to instrument 1 if enabling
+            } else if (!has_instrument) {
+                m_instrument = -1; // Disable instrument
+            }
+            UpdateMML();
+        }
+        if (has_instrument) {
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(80);
+            int instrument_val = m_instrument;
+            if (ImGui::InputInt("##InstrumentNumber", &instrument_val, 1, 1)) {
+                m_instrument = std::max(1, instrument_val);
+                UpdateMML();
+            }
+        } else {
+            ImGui::SameLine();
+            ImGui::TextDisabled("(none)");
+        }
+        
+        // Octave selector
+        ImGui::Text("Octave:");
+        ImGui::SameLine();
+        bool has_octave = (m_octave >= 2 && m_octave <= 9);
+        if (ImGui::Checkbox("##OctaveEnabled", &has_octave)) {
+            if (has_octave && (m_octave < 2 || m_octave > 9)) {
+                m_octave = 3; // Default to octave 3 if enabling
+            } else if (!has_octave) {
+                m_octave = -1; // Disable octave
+            }
+            UpdateMML();
+        }
+        if (has_octave) {
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(80);
+            int octave_val = m_octave;
+            if (ImGui::InputInt("##OctaveNumber", &octave_val, 1, 1)) {
+                m_octave = std::max(2, std::min(9, octave_val));
+                UpdateMML();
+            }
+        } else {
+            ImGui::SameLine();
+            ImGui::TextDisabled("(none)");
         }
         
         ImGui::Separator();
@@ -136,7 +233,9 @@ void PatternEditor::Render() {
         float button_height = 30.0f;
         const int buttons_per_row = 8; // Group buttons in rows of 8
         
-        for (int i = 0; i < m_pattern_length; ++i) {
+        // Recalculate total_steps in case it changed
+        total_steps = GetTotalSteps();
+        for (int i = 0; i < total_steps; ++i) {
             // Start a new row every 8 buttons
             if (i > 0 && (i % buttons_per_row) != 0) {
                 ImGui::SameLine();
