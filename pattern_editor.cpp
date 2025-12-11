@@ -1152,43 +1152,35 @@ void PatternEditor::Render() {
         ImGui::Spacing();
         ImGui::Text("Notes:");
         
-        // Display notes in a grid with colors
-        const int notes_per_row = 6;
-        for (int n = 0; n < NOTE_COUNT; ++n) {
-            if (n > 0 && (n % notes_per_row) != 0) {
-                ImGui::SameLine(0, 5.0f);
-            }
-            
-            std::string note_label = NOTE_NAMES[n];
-            bool is_selected = (m_selected_note == n && !m_selected_note_is_flat && m_selected_octave_change == 0);
-            ImVec4 note_color = GetNoteColor(n, false);
-            
-            // Apply color styling
-            ImGui::PushStyleColor(ImGuiCol_Button, note_color);
+        // Helper function to render a note button
+        auto render_note_button = [&](int note_index, bool is_flat, const std::string& label, float width = 45.0f) {
+            bool is_selected = (m_selected_note == note_index && m_selected_note_is_flat == is_flat && m_selected_octave_change == 0);
+            ImVec4 note_color = GetNoteColor(note_index, is_flat);
             ImVec4 hover_color = ImVec4(
                 std::min(1.0f, note_color.x * 1.2f),
                 std::min(1.0f, note_color.y * 1.2f),
                 std::min(1.0f, note_color.z * 1.2f),
                 1.0f
             );
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hover_color);
             ImVec4 active_color = ImVec4(
                 note_color.x * 0.8f,
                 note_color.y * 0.8f,
                 note_color.z * 0.8f,
                 1.0f
             );
+            
+            ImGui::PushStyleColor(ImGuiCol_Button, note_color);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hover_color);
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, active_color);
             
-            // Highlight selected note with a border effect (brighter)
             if (is_selected) {
                 ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
             }
             
-            if (ImGui::Button(note_label.c_str(), ImVec2(50, 30))) {
-                m_selected_note = n;
-                m_selected_note_is_flat = false;
+            if (ImGui::Button(label.c_str(), ImVec2(width, 30))) {
+                m_selected_note = note_index;
+                m_selected_note_is_flat = is_flat;
                 m_selected_octave_change = 0;
             }
             
@@ -1198,121 +1190,57 @@ void PatternEditor::Render() {
             }
             
             ImGui::PopStyleColor(3);
-        }
+        };
         
-        // Flat alternatives for notes that can be flats (darker colors)
-        ImGui::Spacing();
-        ImGui::Text("Flats:");
-        bool is_db_selected = (m_selected_note == 1 && m_selected_note_is_flat && m_selected_octave_change == 0);
-        bool is_eb_selected = (m_selected_note == 3 && m_selected_note_is_flat && m_selected_octave_change == 0);
-        bool is_gb_selected = (m_selected_note == 6 && m_selected_note_is_flat && m_selected_octave_change == 0);
-        bool is_ab_selected = (m_selected_note == 8 && m_selected_note_is_flat && m_selected_octave_change == 0);
-        bool is_bb_selected = (m_selected_note == 10 && m_selected_note_is_flat && m_selected_octave_change == 0);
+        // Display notes grouped with their sharps and flats
+        // C, C+, D- (D- is the flat of C#)
+        render_note_button(0, false, "C", 45.0f);
+        ImGui::SameLine(0, 3.0f);
+        render_note_button(1, false, "C+", 45.0f);
+        ImGui::SameLine(0, 3.0f);
+        render_note_button(1, true, "D-", 45.0f);
+        ImGui::SameLine(0, 8.0f);
         
-        // D- (Db)
-        ImVec4 db_color = GetNoteColor(1, true);
-        ImGui::PushStyleColor(ImGuiCol_Button, db_color);
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(std::min(1.0f, db_color.x * 1.2f), std::min(1.0f, db_color.y * 1.2f), std::min(1.0f, db_color.z * 1.2f), 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(db_color.x * 0.8f, db_color.y * 0.8f, db_color.z * 0.8f, 1.0f));
-        if (is_db_selected) {
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
-        }
-        if (ImGui::Button("D-", ImVec2(50, 30))) {
-            m_selected_note = 1;
-            m_selected_note_is_flat = true;
-            m_selected_octave_change = 0;
-        }
-        if (is_db_selected) {
-            ImGui::PopStyleVar();
-            ImGui::PopStyleColor();
-        }
-        ImGui::PopStyleColor(3);
+        // D, D+, E- (E- is the flat of D#)
+        render_note_button(2, false, "D", 45.0f);
+        ImGui::SameLine(0, 3.0f);
+        render_note_button(3, false, "D+", 45.0f);
+        ImGui::SameLine(0, 3.0f);
+        render_note_button(3, true, "E-", 45.0f);
+        ImGui::SameLine(0, 8.0f);
         
-        ImGui::SameLine(0, 10.0f);
-        // E- (Eb)
-        ImVec4 eb_color = GetNoteColor(3, true);
-        ImGui::PushStyleColor(ImGuiCol_Button, eb_color);
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(std::min(1.0f, eb_color.x * 1.2f), std::min(1.0f, eb_color.y * 1.2f), std::min(1.0f, eb_color.z * 1.2f), 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(eb_color.x * 0.8f, eb_color.y * 0.8f, eb_color.z * 0.8f, 1.0f));
-        if (is_eb_selected) {
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
-        }
-        if (ImGui::Button("E-", ImVec2(50, 30))) {
-            m_selected_note = 3;
-            m_selected_note_is_flat = true;
-            m_selected_octave_change = 0;
-        }
-        if (is_eb_selected) {
-            ImGui::PopStyleVar();
-            ImGui::PopStyleColor();
-        }
-        ImGui::PopStyleColor(3);
+        // E (no sharp/flat variants)
+        render_note_button(4, false, "E", 45.0f);
+        ImGui::SameLine(0, 8.0f);
         
-        ImGui::SameLine(0, 10.0f);
-        // G- (Gb)
-        ImVec4 gb_color = GetNoteColor(6, true);
-        ImGui::PushStyleColor(ImGuiCol_Button, gb_color);
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(std::min(1.0f, gb_color.x * 1.2f), std::min(1.0f, gb_color.y * 1.2f), std::min(1.0f, gb_color.z * 1.2f), 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(gb_color.x * 0.8f, gb_color.y * 0.8f, gb_color.z * 0.8f, 1.0f));
-        if (is_gb_selected) {
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
-        }
-        if (ImGui::Button("G-", ImVec2(50, 30))) {
-            m_selected_note = 6;
-            m_selected_note_is_flat = true;
-            m_selected_octave_change = 0;
-        }
-        if (is_gb_selected) {
-            ImGui::PopStyleVar();
-            ImGui::PopStyleColor();
-        }
-        ImGui::PopStyleColor(3);
+        // F, F+, G- (G- is the flat of F#)
+        render_note_button(5, false, "F", 45.0f);
+        ImGui::SameLine(0, 3.0f);
+        render_note_button(6, false, "F+", 45.0f);
+        ImGui::SameLine(0, 3.0f);
+        render_note_button(6, true, "G-", 45.0f);
+        ImGui::SameLine(0, 8.0f);
         
-        ImGui::SameLine(0, 10.0f);
-        // A- (Ab)
-        ImVec4 ab_color = GetNoteColor(8, true);
-        ImGui::PushStyleColor(ImGuiCol_Button, ab_color);
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(std::min(1.0f, ab_color.x * 1.2f), std::min(1.0f, ab_color.y * 1.2f), std::min(1.0f, ab_color.z * 1.2f), 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(ab_color.x * 0.8f, ab_color.y * 0.8f, ab_color.z * 0.8f, 1.0f));
-        if (is_ab_selected) {
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
-        }
-        if (ImGui::Button("A-", ImVec2(50, 30))) {
-            m_selected_note = 8;
-            m_selected_note_is_flat = true;
-            m_selected_octave_change = 0;
-        }
-        if (is_ab_selected) {
-            ImGui::PopStyleVar();
-            ImGui::PopStyleColor();
-        }
-        ImGui::PopStyleColor(3);
+        // G, G+, A- (A- is the flat of G#)
+        render_note_button(7, false, "G", 45.0f);
+        ImGui::SameLine(0, 3.0f);
+        render_note_button(8, false, "G+", 45.0f);
+        ImGui::SameLine(0, 3.0f);
+        render_note_button(8, true, "A-", 45.0f);
+        ImGui::SameLine(0, 8.0f);
         
-        ImGui::SameLine(0, 10.0f);
-        // B- (Bb)
-        ImVec4 bb_color = GetNoteColor(10, true);
-        ImGui::PushStyleColor(ImGuiCol_Button, bb_color);
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(std::min(1.0f, bb_color.x * 1.2f), std::min(1.0f, bb_color.y * 1.2f), std::min(1.0f, bb_color.z * 1.2f), 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(bb_color.x * 0.8f, bb_color.y * 0.8f, bb_color.z * 0.8f, 1.0f));
-        if (is_bb_selected) {
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
-        }
-        if (ImGui::Button("B-", ImVec2(50, 30))) {
-            m_selected_note = 10;
-            m_selected_note_is_flat = true;
-            m_selected_octave_change = 0;
-        }
-        if (is_bb_selected) {
-            ImGui::PopStyleVar();
-            ImGui::PopStyleColor();
-        }
-        ImGui::PopStyleColor(3);
+        // A, A+, B- (B- is the flat of A#)
+        render_note_button(9, false, "A", 45.0f);
+        ImGui::SameLine(0, 3.0f);
+        render_note_button(10, false, "A+", 45.0f);
+        ImGui::SameLine(0, 3.0f);
+        render_note_button(10, true, "B-", 45.0f);
+        ImGui::SameLine(0, 8.0f);
         
+        // B (no sharp/flat variants)
+        render_note_button(11, false, "B", 45.0f);
+        
+        // Remove the separate "Flats:" section - flats are now integrated above
         // Octave change options (gray buttons)
         ImGui::Spacing();
         ImGui::Text("Octave Change:");
