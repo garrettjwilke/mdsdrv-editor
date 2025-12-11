@@ -28,6 +28,9 @@ private:
     std::vector<int> m_pattern;  // Pattern data: -2 = tie, -1 = rest, 0-11 = C to B
     std::vector<bool> m_is_flat;  // Whether each note is flat (true) or sharp (false), only used for notes that can be either
     std::vector<int> m_octave_changes;  // Octave changes: -1 = lower (<), 0 = none, 1 = raise (>)
+    int m_selected_note;  // Currently selected note for pattern editing (-2 = tie, -1 = rest, 0-11 = notes)
+    bool m_selected_note_is_flat;  // Whether the selected note is flat (for notes that can be either)
+    int m_selected_octave_change;  // Selected octave change (-1 = lower, 0 = none, 1 = raise)
     
     int GetStepsPerBar() const;  // Calculate steps per bar based on note length
     int GetTotalSteps() const;    // Calculate total number of steps (bars × steps per bar)

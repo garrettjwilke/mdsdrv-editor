@@ -20,6 +20,9 @@ PatternEditor::PatternEditor()
     , m_selected_pattern_macro(-1)
     , m_has_unsaved_changes(false)
     , m_pattern_name("")
+    , m_selected_note(-1)  // Default to rest
+    , m_selected_note_is_flat(false)
+    , m_selected_octave_change(0)  // Default to no octave change
     , m_open(false)
     , m_request_focus(false)
 {
@@ -1060,8 +1063,159 @@ void PatternEditor::Render() {
         
         ImGui::Separator();
         
+        // Note selector with checkboxes (radio button style - only one selected at a time)
+        ImGui::Text("Select Note/Option:");
+        ImGui::Spacing();
+        
+        // Rest and Tie options
+        bool is_rest_selected = (m_selected_note == -1 && m_selected_octave_change == 0);
+        bool is_tie_selected = (m_selected_note == -2 && m_selected_octave_change == 0);
+        
+        if (ImGui::Checkbox("Rest (R)", &is_rest_selected)) {
+            if (is_rest_selected) {
+                m_selected_note = -1;
+                m_selected_note_is_flat = false;
+                m_selected_octave_change = 0;
+            }
+        }
+        ImGui::SameLine(0, 20.0f);
+        if (ImGui::Checkbox("Tie (^)", &is_tie_selected)) {
+            if (is_tie_selected) {
+                m_selected_note = -2;
+                m_selected_note_is_flat = false;
+                m_selected_octave_change = 0;
+            }
+        }
+        
+        ImGui::Spacing();
+        ImGui::Text("Notes:");
+        
+        // Display notes in a grid
+        const int notes_per_row = 6;
+        for (int n = 0; n < NOTE_COUNT; ++n) {
+            if (n > 0 && (n % notes_per_row) != 0) {
+                ImGui::SameLine(0, 10.0f);
+            }
+            
+            std::string note_label = NOTE_NAMES[n];
+            bool is_selected = (m_selected_note == n && !m_selected_note_is_flat && m_selected_octave_change == 0);
+            
+            if (ImGui::Checkbox(note_label.c_str(), &is_selected)) {
+                if (is_selected) {
+                    m_selected_note = n;
+                    m_selected_note_is_flat = false;
+                    m_selected_octave_change = 0;
+                } else {
+                    // If unchecking, default to rest
+                    m_selected_note = -1;
+                    m_selected_note_is_flat = false;
+                    m_selected_octave_change = 0;
+                }
+            }
+        }
+        
+        // Flat alternatives for notes that can be flats
+        ImGui::Spacing();
+        ImGui::Text("Flats:");
+        bool is_db_selected = (m_selected_note == 1 && m_selected_note_is_flat && m_selected_octave_change == 0);
+        bool is_eb_selected = (m_selected_note == 3 && m_selected_note_is_flat && m_selected_octave_change == 0);
+        bool is_gb_selected = (m_selected_note == 6 && m_selected_note_is_flat && m_selected_octave_change == 0);
+        bool is_ab_selected = (m_selected_note == 8 && m_selected_note_is_flat && m_selected_octave_change == 0);
+        bool is_bb_selected = (m_selected_note == 10 && m_selected_note_is_flat && m_selected_octave_change == 0);
+        
+        if (ImGui::Checkbox("D-", &is_db_selected)) {
+            if (is_db_selected) {
+                m_selected_note = 1;
+                m_selected_note_is_flat = true;
+                m_selected_octave_change = 0;
+            } else {
+                m_selected_note = -1;
+                m_selected_note_is_flat = false;
+                m_selected_octave_change = 0;
+            }
+        }
+        ImGui::SameLine(0, 20.0f);
+        if (ImGui::Checkbox("E-", &is_eb_selected)) {
+            if (is_eb_selected) {
+                m_selected_note = 3;
+                m_selected_note_is_flat = true;
+                m_selected_octave_change = 0;
+            } else {
+                m_selected_note = -1;
+                m_selected_note_is_flat = false;
+                m_selected_octave_change = 0;
+            }
+        }
+        ImGui::SameLine(0, 20.0f);
+        if (ImGui::Checkbox("G-", &is_gb_selected)) {
+            if (is_gb_selected) {
+                m_selected_note = 6;
+                m_selected_note_is_flat = true;
+                m_selected_octave_change = 0;
+            } else {
+                m_selected_note = -1;
+                m_selected_note_is_flat = false;
+                m_selected_octave_change = 0;
+            }
+        }
+        ImGui::SameLine(0, 20.0f);
+        if (ImGui::Checkbox("A-", &is_ab_selected)) {
+            if (is_ab_selected) {
+                m_selected_note = 8;
+                m_selected_note_is_flat = true;
+                m_selected_octave_change = 0;
+            } else {
+                m_selected_note = -1;
+                m_selected_note_is_flat = false;
+                m_selected_octave_change = 0;
+            }
+        }
+        ImGui::SameLine(0, 20.0f);
+        if (ImGui::Checkbox("B-", &is_bb_selected)) {
+            if (is_bb_selected) {
+                m_selected_note = 10;
+                m_selected_note_is_flat = true;
+                m_selected_octave_change = 0;
+            } else {
+                m_selected_note = -1;
+                m_selected_note_is_flat = false;
+                m_selected_octave_change = 0;
+            }
+        }
+        
+        // Octave change options (these are independent - can be combined with notes)
+        ImGui::Spacing();
+        ImGui::Text("Octave Change:");
+        bool octave_lower_selected = (m_selected_octave_change == -1);
+        bool octave_none_selected = (m_selected_octave_change == 0);
+        bool octave_raise_selected = (m_selected_octave_change == 1);
+        
+        if (ImGui::Checkbox("Lower (<)", &octave_lower_selected)) {
+            if (octave_lower_selected) {
+                m_selected_octave_change = -1;
+            } else {
+                m_selected_octave_change = 0;
+            }
+        }
+        ImGui::SameLine(0, 20.0f);
+        if (ImGui::Checkbox("None", &octave_none_selected)) {
+            if (octave_none_selected) {
+                m_selected_octave_change = 0;
+            }
+        }
+        ImGui::SameLine(0, 20.0f);
+        if (ImGui::Checkbox("Raise (>)", &octave_raise_selected)) {
+            if (octave_raise_selected) {
+                m_selected_octave_change = 1;
+            } else {
+                m_selected_octave_change = 0;
+            }
+        }
+        
+        ImGui::Separator();
+        
         // Pattern buttons
-        ImGui::Text("Pattern Steps:");
+        ImGui::Text("Pattern Steps (click to apply selected note):");
         ImGui::BeginChild("PatternButtons", ImVec2(0, 200), true, ImGuiWindowFlags_HorizontalScrollbar);
         
         float button_width = 40.0f;
@@ -1141,152 +1295,24 @@ void PatternEditor::Render() {
             }
             
             if (ImGui::Button(display_label.c_str(), ImVec2(button_width, button_height))) {
-                ImGui::OpenPopup("NotePopup");
-            }
-            
-            ImGui::PopStyleColor(3);
-            
-            // Popup menu for note selection (must be within the same ID scope)
-            if (ImGui::BeginPopup("NotePopup")) {
-                // Rest option
-                bool is_rest = (note == -1);
-                if (ImGui::Selectable("Rest", is_rest)) {
-                    m_pattern[i] = -1;
-                    UpdateMML();
-                    ImGui::CloseCurrentPopup();
-                }
-                if (is_rest) {
-                    ImGui::SetItemDefaultFocus();
-                }
-                
-                // Tie option
-                bool is_tie = (note == -2);
-                if (ImGui::Selectable("Tie (^)", is_tie)) {
-                    m_pattern[i] = -2;
-                    UpdateMML();
-                    ImGui::CloseCurrentPopup();
-                }
-                if (is_tie) {
-                    ImGui::SetItemDefaultFocus();
-                }
-                
-                ImGui::Separator();
-                
-                // All note options
-                // Ensure m_is_flat vector is properly sized
+                // Apply the currently selected note/option to this pattern step
+                // Ensure m_is_flat and m_octave_changes are properly sized
                 if (i >= m_is_flat.size()) {
                     m_is_flat.resize(i + 1, false);
                 }
-                for (int n = 0; n < NOTE_COUNT; ++n) {
-                    bool is_flat_val = m_is_flat[i];
-                    bool is_selected = (note == n && !is_flat_val);
-                    std::string note_label = NOTE_NAMES[n];
-                    if (ImGui::Selectable(note_label.c_str(), is_selected)) {
-                        // Ensure m_is_flat is large enough before setting values
-                        if (i >= m_is_flat.size()) {
-                            m_is_flat.resize(i + 1, false);
-                        }
-                        // Set the pattern note
-                        m_pattern[i] = n;
-                        // Set flat flag: only notes 1, 3, 6, 8, 10 can be flats
-                        // When selected from regular menu, they're sharps (false)
-                        if (n == 1 || n == 3 || n == 6 || n == 8 || n == 10) {
-                            m_is_flat[i] = false; // Sharp
-                        } else {
-                            // For natural notes, ensure flat flag is false (though it shouldn't matter)
-                            m_is_flat[i] = false;
-                        }
-                        // Force immediate update
-                        UpdateMML();
-                        ImGui::CloseCurrentPopup();
-                    }
-                    if (is_selected) {
-                        ImGui::SetItemDefaultFocus();
-                    }
+                if (i >= m_octave_changes.size()) {
+                    m_octave_changes.resize(i + 1, 0);
                 }
                 
-                // Flat alternatives for notes that can be flats
-                ImGui::Separator();
-                ImGui::Text("Flats:");
-                // C+ can be D-
-                bool is_db = (note == 1 && m_is_flat[i]);
-                if (ImGui::Selectable("D-", is_db)) {
-                    m_pattern[i] = 1; // C+/D-
-                    m_is_flat[i] = true;
-                    UpdateMML();
-                    ImGui::CloseCurrentPopup();
-                }
-                if (is_db) {
-                    ImGui::SetItemDefaultFocus();
-                }
-                // D+ can be E-
-                bool is_eb = (note == 3 && m_is_flat[i]);
-                if (ImGui::Selectable("E-", is_eb)) {
-                    m_pattern[i] = 3; // D+/E-
-                    m_is_flat[i] = true;
-                    UpdateMML();
-                    ImGui::CloseCurrentPopup();
-                }
-                if (is_eb) {
-                    ImGui::SetItemDefaultFocus();
-                }
-                // F+ can be G-
-                bool is_gb = (note == 6 && m_is_flat[i]);
-                if (ImGui::Selectable("G-", is_gb)) {
-                    m_pattern[i] = 6; // F+/G-
-                    m_is_flat[i] = true;
-                    UpdateMML();
-                    ImGui::CloseCurrentPopup();
-                }
-                if (is_gb) {
-                    ImGui::SetItemDefaultFocus();
-                }
-                // G+ can be A-
-                bool is_ab = (note == 8 && m_is_flat[i]);
-                if (ImGui::Selectable("A-", is_ab)) {
-                    m_pattern[i] = 8; // G+/A-
-                    m_is_flat[i] = true;
-                    UpdateMML();
-                    ImGui::CloseCurrentPopup();
-                }
-                if (is_ab) {
-                    ImGui::SetItemDefaultFocus();
-                }
-                // A+ can be B-
-                bool is_bb = (note == 10 && m_is_flat[i]);
-                if (ImGui::Selectable("B-", is_bb)) {
-                    m_pattern[i] = 10; // A+/B-
-                    m_is_flat[i] = true;
-                    UpdateMML();
-                    ImGui::CloseCurrentPopup();
-                }
-                if (is_bb) {
-                    ImGui::SetItemDefaultFocus();
-                }
+                // Apply selected note
+                m_pattern[i] = m_selected_note;
+                m_is_flat[i] = m_selected_note_is_flat;
+                m_octave_changes[i] = m_selected_octave_change;
                 
-                ImGui::Separator();
-                
-                // Octave change options
-                ImGui::Text("Octave:");
-                bool octave_lower = (octave_change == -1);
-                bool octave_none = (octave_change == 0);
-                bool octave_raise = (octave_change == 1);
-                
-                if (ImGui::Selectable("Lower (<)", octave_lower)) {
-                    m_octave_changes[i] = -1;
-                    UpdateMML();
-                }
-                if (ImGui::Selectable("None", octave_none)) {
-                    m_octave_changes[i] = 0;
-                    UpdateMML();
-                }
-                if (ImGui::Selectable("Raise (>)", octave_raise)) {
-                    m_octave_changes[i] = 1;
-                    UpdateMML();
-                }
-                
-                ImGui::EndPopup();
+                UpdateMML();
             }
+            
+            ImGui::PopStyleColor(3);
             
             ImGui::PopID();
             
