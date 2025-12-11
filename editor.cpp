@@ -539,17 +539,17 @@ void Editor::RenderThemeWindow() {
         ImGui::Separator();
 
         bool changed = false;
-        changed |= ImGui::RadioButton("High-contrast Dark", &m_themeSelection, 0);
+
         changed |= ImGui::RadioButton("Light", &m_themeSelection, 1);
         changed |= ImGui::RadioButton("Classic", &m_themeSelection, 2);
         changed |= ImGui::SliderFloat("UI Scale", &m_uiScale, 0.5f, 2.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
 
         if (changed) {
             switch (m_themeSelection) {
-                case 0: Theme::ApplyDark(); break;
+
                 case 1: Theme::ApplyLight(); break;
                 case 2: Theme::ApplyClassic(); break;
-                default: Theme::ApplyDark(); break;
+                default: Theme::ApplyClassic(); break;
             }
             ImGui::GetIO().FontGlobalScale = m_uiScale;
             // Persist the updated theme without losing window dimensions

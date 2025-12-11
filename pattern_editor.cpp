@@ -41,17 +41,17 @@ ImVec4 PatternEditor::GetNoteColor(int note_index, bool is_flat) {
     if (is_sharp) {
         // Lighter version for sharps
         return ImVec4(
-            std::min(1.0f, base_color.x * 1.3f),
-            std::min(1.0f, base_color.y * 1.3f),
-            std::min(1.0f, base_color.z * 1.3f),
+            std::min(1.0f, base_color.x),
+            std::min(1.0f, base_color.y),
+            std::min(1.0f, base_color.z),
             1.0f
         );
     } else if (is_flat_note) {
         // Darker version for flats
         return ImVec4(
-            base_color.x * 0.6f,
-            base_color.y * 0.6f,
-            base_color.z * 0.6f,
+            base_color.x,
+            base_color.y,
+            base_color.z,
             1.0f
         );
     } else {
@@ -801,7 +801,7 @@ void PatternEditor::CreateDefaultPattern() {
     }
     
     // Create a default *701 pattern with a single rest and pattern name "1"
-    std::string default_pattern = "*701 l1 r ; 1\n";
+    std::string default_pattern = "*701 l4 r ; 1\n";
     
     // Insert at the beginning of the editor text
     if (m_editor_text.empty()) {

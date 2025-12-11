@@ -60,6 +60,8 @@ void ApplyDark() {
     colors[ImGuiCol_TableRowBg] = ImVec4(0.15f, 0.17f, 0.20f, 0.60f);
     colors[ImGuiCol_TableRowBgAlt] = ImVec4(0.18f, 0.21f, 0.24f, 0.60f);
     colors[ImGuiCol_TextSelectedBg] = ImVec4(0.26f, 0.44f, 0.68f, 1.00f);
+    // Match the text cursor to the current text color so it stays visible on dark backgrounds
+    colors[ImGuiCol_InputTextCursor] = colors[ImGuiCol_Text];
     colors[ImGuiCol_DragDropTarget] = ImVec4(0.26f, 0.44f, 0.68f, 1.00f);
     colors[ImGuiCol_NavHighlight] = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
     colors[ImGuiCol_NavWindowingHighlight] = ImVec4(0.78f, 0.86f, 0.98f, 0.70f);
@@ -107,10 +109,14 @@ void ApplyLight() {
     colors[ImGuiCol_TabActive] = ImVec4(0.76f, 0.82f, 0.90f, 1.00f);
     colors[ImGuiCol_TabUnfocused] = ImVec4(0.88f, 0.90f, 0.94f, 1.00f);
     colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.82f, 0.86f, 0.92f, 1.00f);
+    // Keep the text cursor in sync with the theme's text color
+    colors[ImGuiCol_InputTextCursor] = colors[ImGuiCol_Text];
 }
 
 void ApplyClassic() {
     ImGui::StyleColorsClassic();
+    // Ensure the text cursor follows the text color for consistency
+    ImGui::GetStyle().Colors[ImGuiCol_InputTextCursor] = ImGui::GetStyle().Colors[ImGuiCol_Text];
 }
 
 } // namespace Theme
