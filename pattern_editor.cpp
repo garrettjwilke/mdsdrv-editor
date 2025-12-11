@@ -15,6 +15,7 @@ PatternEditor::PatternEditor()
     : m_pattern_length(1)
     , m_note_length(4)
     , m_instrument(-1)
+    , m_is_drum_track(false)
     , m_octave(-1)
     , m_selected_pattern_macro(-1)
     , m_has_unsaved_changes(false)
@@ -174,6 +175,7 @@ std::vector<PatternEditor::PatternInfo> PatternEditor::ScanForPatterns(const std
         PatternInfo info;
         info.content = cleaned_content;
         info.instrument = -1;
+        info.is_drum_track = false;
         info.octave = -1;
         info.note_length = 4; // default
         info.bars = 1; // default
@@ -189,6 +191,16 @@ std::vector<PatternEditor::PatternInfo> PatternEditor::ScanForPatterns(const std
             if (token[0] == '@' && token.length() > 1) {
                 try {
                     info.instrument = std::stoi(token.substr(1));
+                    info.is_drum_track = false;
+                } catch (...) {
+                    info.instrument = -1;
+                }
+            }
+            // Check for drum track DX
+            else if (token[0] == 'D' && token.length() > 1) {
+                try {
+                    info.instrument = std::stoi(token.substr(1));
+                    info.is_drum_track = true;
                 } catch (...) {
                     info.instrument = -1;
                 }
@@ -244,6 +256,7 @@ bool PatternEditor::LoadPattern(const PatternInfo& pattern) {
     
     // Set instrument
     m_instrument = pattern.instrument;
+    m_is_drum_track = pattern.is_drum_track;
     
     // Set octave
     m_octave = pattern.octave;
@@ -268,8 +281,8 @@ bool PatternEditor::LoadPattern(const PatternInfo& pattern) {
             continue;
         }
         
-        // Skip @X, oX, lX commands
-        if (content[content_pos] == '@' || content[content_pos] == 'o' || content[content_pos] == 'l') {
+        // Skip @X, DX, oX, lX commands
+        if (content[content_pos] == '@' || content[content_pos] == 'D' || content[content_pos] == 'o' || content[content_pos] == 'l') {
             content_pos++;
             // Skip digits after command
             while (content_pos < content.length() && std::isdigit(content[content_pos])) {
@@ -386,9 +399,13 @@ bool PatternEditor::LoadPattern(const PatternInfo& pattern) {
 void PatternEditor::UpdateMML() {
     std::ostringstream oss;
     
-    // Output instrument number if specified (must be >= 1)
+    // Output instrument or drum track number if specified (must be >= 1)
     if (m_instrument >= 1) {
-        oss << "@" << m_instrument << " ";
+        if (m_is_drum_track) {
+            oss << "D" << m_instrument << " ";
+        } else {
+            oss << "@" << m_instrument << " ";
+        }
     }
     
     // Output starting octave if specified (must be 2-9)
@@ -844,7 +861,11 @@ void PatternEditor::Render() {
                     std::string display_name = pat.name.empty() ? std::to_string(pattern_number) : pat.name;
                     label += " - " + display_name;
                     if (pat.instrument >= 1) {
-                        label += " @" + std::to_string(pat.instrument);
+                        if (pat.is_drum_track) {
+                            label += " D" + std::to_string(pat.instrument);
+                        } else {
+                            label += " @" + std::to_string(pat.instrument);
+                        }
                     }
                     if (pat.octave >= 2 && pat.octave <= 9) {
                         label += " o" + std::to_string(pat.octave);
@@ -952,7 +973,7 @@ void PatternEditor::Render() {
             UpdateMML();
         }
         
-        // Instrument selector
+        // Instrument/Drum track selector
         ImGui::Text("Instrument:");
         ImGui::SameLine();
         bool has_instrument = (m_instrument >= 1);
@@ -965,6 +986,15 @@ void PatternEditor::Render() {
             UpdateMML();
         }
         if (has_instrument) {
+            ImGui::SameLine();
+            // Choose between @ (instrument) and D (drum track)
+            const char* instrument_types[] = { "@", "D" };
+            int type_index = m_is_drum_track ? 1 : 0;
+            ImGui::SetNextItemWidth(40);
+            if (ImGui::Combo("##InstrumentType", &type_index, instrument_types, 2)) {
+                m_is_drum_track = (type_index == 1);
+                UpdateMML();
+            }
             ImGui::SameLine();
             ImGui::SetNextItemWidth(80);
             int instrument_val = m_instrument;

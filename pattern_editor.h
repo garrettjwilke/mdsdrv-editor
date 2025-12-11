@@ -23,6 +23,7 @@ private:
     int m_pattern_length;  // Number of bars in the pattern
     int m_note_length;      // Note length (1, 2, 4, 8, 16, 32)
     int m_instrument;       // Instrument number (-1 = none, 1+ = instrument number)
+    bool m_is_drum_track;   // Whether this is a drum track (D) or instrument (@)
     int m_octave;           // Starting octave (-1 = none, 2-9 = octave number)
     std::vector<int> m_pattern;  // Pattern data: -2 = tie, -1 = rest, 0-11 = C to B
     std::vector<bool> m_is_flat;  // Whether each note is flat (true) or sharp (false), only used for notes that can be either
@@ -55,6 +56,7 @@ private:
         int bars;
         int note_length;
         int instrument;
+        bool is_drum_track;  // Whether this is a drum track (D) or instrument (@)
         int octave;
         int macro_number;  // The macro number (701, 702, etc.) - pattern number is macro_number - 700
         std::string name;  // Optional pattern name (after semicolon)
