@@ -1192,8 +1192,8 @@ void PatternEditor::Render() {
             ImGui::PopStyleColor(3);
         };
         
-        // Display notes grouped with their sharps and flats
-        // C, C+, D- (D- is the flat of C#)
+        // Display notes grouped with their sharps and flats across two rows
+        // Row 1
         render_note_button(0, false, "C", 45.0f);
         ImGui::SameLine(0, 3.0f);
         render_note_button(1, false, "C+", 45.0f);
@@ -1201,7 +1201,6 @@ void PatternEditor::Render() {
         render_note_button(1, true, "D-", 45.0f);
         ImGui::SameLine(0, 8.0f);
         
-        // D, D+, E- (E- is the flat of D#)
         render_note_button(2, false, "D", 45.0f);
         ImGui::SameLine(0, 3.0f);
         render_note_button(3, false, "D+", 45.0f);
@@ -1209,19 +1208,20 @@ void PatternEditor::Render() {
         render_note_button(3, true, "E-", 45.0f);
         ImGui::SameLine(0, 8.0f);
         
-        // E (no sharp/flat variants)
         render_note_button(4, false, "E", 45.0f);
         ImGui::SameLine(0, 8.0f);
         
-        // F, F+, G- (G- is the flat of F#)
         render_note_button(5, false, "F", 45.0f);
         ImGui::SameLine(0, 3.0f);
         render_note_button(6, false, "F+", 45.0f);
         ImGui::SameLine(0, 3.0f);
         render_note_button(6, true, "G-", 45.0f);
-        ImGui::SameLine(0, 8.0f);
         
-        // G, G+, A- (A- is the flat of G#)
+        // Row break
+        ImGui::NewLine();
+        ImGui::Spacing();
+        
+        // Row 2
         render_note_button(7, false, "G", 45.0f);
         ImGui::SameLine(0, 3.0f);
         render_note_button(8, false, "G+", 45.0f);
@@ -1229,7 +1229,6 @@ void PatternEditor::Render() {
         render_note_button(8, true, "A-", 45.0f);
         ImGui::SameLine(0, 8.0f);
         
-        // A, A+, B- (B- is the flat of A#)
         render_note_button(9, false, "A", 45.0f);
         ImGui::SameLine(0, 3.0f);
         render_note_button(10, false, "A+", 45.0f);
@@ -1237,7 +1236,6 @@ void PatternEditor::Render() {
         render_note_button(10, true, "B-", 45.0f);
         ImGui::SameLine(0, 8.0f);
         
-        // B (no sharp/flat variants)
         render_note_button(11, false, "B", 45.0f);
         
         // Remove the separate "Flats:" section - flats are now integrated above
