@@ -1425,10 +1425,24 @@ void PatternEditor::Render() {
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
             } else {
-                // Note - green
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.3f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.7f, 0.4f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.5f, 0.2f, 1.0f));
+                // Note - match color to selection (base / sharp / flat)
+                bool is_flat = (i < m_is_flat.size()) ? m_is_flat[i] : false;
+                ImVec4 note_color = GetNoteColor(note, is_flat);
+                ImVec4 hover_color = ImVec4(
+                    std::min(1.0f, note_color.x * 1.2f),
+                    std::min(1.0f, note_color.y * 1.2f),
+                    std::min(1.0f, note_color.z * 1.2f),
+                    1.0f
+                );
+                ImVec4 active_color = ImVec4(
+                    note_color.x * 0.8f,
+                    note_color.y * 0.8f,
+                    note_color.z * 0.8f,
+                    1.0f
+                );
+                ImGui::PushStyleColor(ImGuiCol_Button, note_color);
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hover_color);
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, active_color);
             }
             
             // Add octave indicator to button label if present
