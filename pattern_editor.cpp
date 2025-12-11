@@ -912,7 +912,7 @@ void PatternEditor::Render() {
             
             // Pattern name input
             ImGui::Text("Pattern Name (optional):");
-            ImGui::SameLine();
+            ImGui::SameLine(0, 10.0f); // Add 10 pixels spacing after label
             static int last_selected_macro = -1;
             if (m_selected_pattern_macro != last_selected_macro) {
                 // Update buffer when pattern changes - show pattern number if name is empty
@@ -921,7 +921,7 @@ void PatternEditor::Render() {
                 std::copy(name_to_show.begin(), name_to_show.end(), m_pattern_name_buffer.begin());
                 last_selected_macro = m_selected_pattern_macro;
             }
-            ImGui::SetNextItemWidth(200);
+            ImGui::SetNextItemWidth(250); // Increased from 200
             if (ImGui::InputText("##PatternName", m_pattern_name_buffer.data(), m_pattern_name_buffer.size())) {
                 std::string input_name = std::string(m_pattern_name_buffer.data());
                 // If user set it to the pattern number or cleared it, treat as empty (will auto-use pattern number)
@@ -941,7 +941,8 @@ void PatternEditor::Render() {
         
         // Pattern length selector (in bars)
         ImGui::Text("Pattern Length (bars):");
-        ImGui::SameLine();
+        ImGui::SameLine(0, 10.0f); // Add 10 pixels spacing after label
+        ImGui::SetNextItemWidth(100);
         if (ImGui::InputInt("##PatternLength", &m_pattern_length, 1, 1)) {
             m_pattern_length = std::max(1, std::min(16, m_pattern_length));
             total_steps = GetTotalSteps();
@@ -951,9 +952,11 @@ void PatternEditor::Render() {
             UpdateMML();
         }
         
+        ImGui::Spacing(); // Add vertical spacing between rows
+        
         // Note length selector
         ImGui::Text("Note Length:");
-        ImGui::SameLine();
+        ImGui::SameLine(0, 10.0f); // Add 10 pixels spacing after label
         const char* note_length_names[] = { "1 (Whole)", "2 (Half)", "4 (Quarter)", "8 (Eighth)", "16 (Sixteenth)", "32 (Thirty-second)" };
         int note_length_values[] = { 1, 2, 4, 8, 16, 32 };
         int current_index = 0;
@@ -963,6 +966,7 @@ void PatternEditor::Render() {
                 break;
             }
         }
+        ImGui::SetNextItemWidth(150);
         if (ImGui::Combo("##NoteLength", &current_index, note_length_names, 6)) {
             m_note_length = note_length_values[current_index];
             // Resize pattern arrays when note length changes
@@ -973,9 +977,11 @@ void PatternEditor::Render() {
             UpdateMML();
         }
         
+        ImGui::Spacing(); // Add vertical spacing between rows
+        
         // Instrument/Drum track selector
         ImGui::Text("Instrument:");
-        ImGui::SameLine();
+        ImGui::SameLine(0, 10.0f); // Add 10 pixels spacing after label
         bool has_instrument = (m_instrument >= 1);
         if (ImGui::Checkbox("##InstrumentEnabled", &has_instrument)) {
             if (has_instrument && m_instrument < 1) {
@@ -986,30 +992,32 @@ void PatternEditor::Render() {
             UpdateMML();
         }
         if (has_instrument) {
-            ImGui::SameLine();
+            ImGui::SameLine(0, 8.0f); // Add 8 pixels spacing after checkbox
             // Choose between @ (instrument) and D (drum track)
             const char* instrument_types[] = { "@", "D" };
             int type_index = m_is_drum_track ? 1 : 0;
-            ImGui::SetNextItemWidth(40);
+            ImGui::SetNextItemWidth(60); // Increased from 40
             if (ImGui::Combo("##InstrumentType", &type_index, instrument_types, 2)) {
                 m_is_drum_track = (type_index == 1);
                 UpdateMML();
             }
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(80);
+            ImGui::SameLine(0, 8.0f); // Add 8 pixels spacing after type selector
+            ImGui::SetNextItemWidth(100); // Increased from 80
             int instrument_val = m_instrument;
             if (ImGui::InputInt("##InstrumentNumber", &instrument_val, 1, 1)) {
                 m_instrument = std::max(1, instrument_val);
                 UpdateMML();
             }
         } else {
-            ImGui::SameLine();
+            ImGui::SameLine(0, 8.0f); // Add 8 pixels spacing after checkbox
             ImGui::TextDisabled("(none)");
         }
         
+        ImGui::Spacing(); // Add vertical spacing between rows
+        
         // Octave selector
         ImGui::Text("Octave:");
-        ImGui::SameLine();
+        ImGui::SameLine(0, 10.0f); // Add 10 pixels spacing after label
         bool has_octave = (m_octave >= 2 && m_octave <= 9);
         if (ImGui::Checkbox("##OctaveEnabled", &has_octave)) {
             if (has_octave && (m_octave < 2 || m_octave > 9)) {
@@ -1020,15 +1028,15 @@ void PatternEditor::Render() {
             UpdateMML();
         }
         if (has_octave) {
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(80);
+            ImGui::SameLine(0, 8.0f); // Add 8 pixels spacing after checkbox
+            ImGui::SetNextItemWidth(100); // Increased from 80
             int octave_val = m_octave;
             if (ImGui::InputInt("##OctaveNumber", &octave_val, 1, 1)) {
                 m_octave = std::max(2, std::min(9, octave_val));
                 UpdateMML();
             }
         } else {
-            ImGui::SameLine();
+            ImGui::SameLine(0, 8.0f); // Add 8 pixels spacing after checkbox
             ImGui::TextDisabled("(none)");
         }
         
