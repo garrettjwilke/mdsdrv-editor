@@ -16,6 +16,9 @@ PatternEditor::PatternEditor()
     , m_note_length(4)
     , m_instrument(-1)
     , m_octave(-1)
+    , m_selected_pattern_macro(-1)
+    , m_has_unsaved_changes(false)
+    , m_pattern_name("")
     , m_open(false)
     , m_request_focus(false)
 {
@@ -24,6 +27,7 @@ PatternEditor::PatternEditor()
     m_is_flat.resize(total_steps, false); // Initialize with sharps (false = sharp)
     m_octave_changes.resize(total_steps, 0); // Initialize with no octave changes
     m_mml_buffer.resize(4096, 0); // Allocate buffer for MML output
+    m_pattern_name_buffer.resize(256, 0); // Allocate buffer for pattern name input
     UpdateMML();
 }
 
@@ -44,6 +48,22 @@ int PatternEditor::GetTotalSteps() const {
 }
 
 PatternEditor::~PatternEditor() {
+}
+
+void PatternEditor::SetEditorText(const std::string& text) {
+    // Only reset if the text actually changed (not just a refresh with same content)
+    if (m_editor_text != text) {
+        // If we have unsaved changes, don't reset (user is editing)
+        if (!m_has_unsaved_changes) {
+            m_editor_text = text; 
+            m_modified_editor_text = text;
+            m_selected_pattern_macro = -1;
+        } else {
+            // Text changed externally while editing - this shouldn't happen normally
+            // but if it does, we'll update the base text but keep the selection
+            m_editor_text = text;
+        }
+    }
 }
 
 std::vector<PatternEditor::PatternInfo> PatternEditor::ScanForPatterns(const std::string& text) {
@@ -72,40 +92,55 @@ std::vector<PatternEditor::PatternInfo> PatternEditor::ScanForPatterns(const std
             continue; // Skip macros outside the 701-799 range
         }
         
-        // Find the content after this macro number
+        // Find the content after this macro number - patterns must be on a single line
         size_t macro_pos = match.position() + match.length();
         std::string pattern_content;
         
-        // Extract content until next *number or semicolon or end of string
+        // Find the end of the line containing this macro
+        size_t line_start = macro_pos;
+        // Go back to find the start of the line
+        while (line_start > 0 && text[line_start - 1] != '\n' && text[line_start - 1] != '\r') {
+            line_start--;
+        }
+        // Find the end of the line
+        size_t line_end = macro_pos;
+        while (line_end < text.length() && text[line_end] != '\n' && text[line_end] != '\r') {
+            line_end++;
+        }
+        
+        // Extract content from after macro number to end of line
         size_t content_start = macro_pos;
-        while (content_start < text.length() && std::isspace(text[content_start])) {
+        while (content_start < line_end && std::isspace(text[content_start])) {
             content_start++;
         }
         
-        // Find the end: next *number at start of line, semicolon, or end
-        size_t content_end = content_start;
-        while (content_end < text.length()) {
-            if (text[content_end] == ';') {
-                break;
-            }
-            // Check if this is the start of a new macro (after newline or at start)
-            if (content_end > 0 && text[content_end - 1] == '\n' && text[content_end] == '*') {
-                // Check if it's followed by digits
-                size_t check_pos = content_end + 1;
-                while (check_pos < text.length() && std::isdigit(text[check_pos])) {
-                    check_pos++;
-                }
-                if (check_pos > content_end + 1) {
-                    // Found a new macro, stop here
-                    break;
-                }
-            }
-            content_end++;
+        // Extract the content (everything on this line after the macro number)
+        if (line_end > content_start) {
+            pattern_content = text.substr(content_start, line_end - content_start);
         }
         
-        // Extract the content
-        if (content_end > content_start) {
-            pattern_content = text.substr(content_start, content_end - content_start);
+        // Extract the name after semicolon (if present) - must be on the same line
+        std::string pattern_name;
+        size_t semicolon_pos = pattern_content.find(';');
+        if (semicolon_pos != std::string::npos) {
+            size_t name_start = semicolon_pos + 1;
+            // Skip whitespace after semicolon
+            while (name_start < pattern_content.length() && std::isspace(pattern_content[name_start])) {
+                name_start++;
+            }
+            // Name is everything after semicolon until end of line
+            if (name_start < pattern_content.length()) {
+                pattern_name = pattern_content.substr(name_start);
+                // Trim whitespace from name
+                while (!pattern_name.empty() && std::isspace(pattern_name[0])) {
+                    pattern_name.erase(0, 1);
+                }
+                while (!pattern_name.empty() && std::isspace(pattern_name[pattern_name.length() - 1])) {
+                    pattern_name.erase(pattern_name.length() - 1, 1);
+                }
+            }
+            // Remove name from pattern_content (keep only up to semicolon)
+            pattern_content = pattern_content.substr(0, semicolon_pos);
         }
         
         // Remove [|] and [] markers from pattern content
@@ -143,6 +178,7 @@ std::vector<PatternEditor::PatternInfo> PatternEditor::ScanForPatterns(const std
         info.note_length = 4; // default
         info.bars = 1; // default
         info.macro_number = macro_number; // Store the macro number
+        info.name = pattern_name; // Store the pattern name
         
         // Parse the pattern content
         std::istringstream iss(cleaned_content);
@@ -193,6 +229,13 @@ std::vector<PatternEditor::PatternInfo> PatternEditor::ScanForPatterns(const std
 }
 
 bool PatternEditor::LoadPattern(const PatternInfo& pattern) {
+    // Track which pattern we're editing
+    m_selected_pattern_macro = pattern.macro_number;
+    // Keep name as-is (empty if no name in MML)
+    m_pattern_name = pattern.name;
+    m_has_unsaved_changes = false;
+    m_modified_editor_text = m_editor_text;  // Start with original text
+    
     // Set pattern length (bars)
     m_pattern_length = pattern.bars;
     
@@ -431,6 +474,320 @@ void PatternEditor::UpdateMML() {
     }
     std::copy(m_mml_output.begin(), m_mml_output.end(), m_mml_buffer.begin());
     m_mml_buffer[m_mml_output.size()] = '\0';
+    
+    // Mark as having unsaved changes if a pattern is selected
+    if (m_selected_pattern_macro >= 701) {
+        m_has_unsaved_changes = true;
+    }
+}
+
+void PatternEditor::ApplyPatternChanges() {
+    if (m_selected_pattern_macro < 701) {
+        return; // No pattern selected
+    }
+    
+    // Find the pattern macro in the editor text
+    std::string macro_str = "*" + std::to_string(m_selected_pattern_macro);
+    size_t macro_pos = m_editor_text.find(macro_str);
+    
+    // If pattern doesn't exist, insert it after the previous pattern
+    if (macro_pos == std::string::npos) {
+        // Find where to insert the new pattern
+        size_t insert_pos = 0;
+        
+        // Find the previous pattern (the one with the highest macro number less than current)
+        std::vector<PatternInfo> found_patterns = ScanForPatterns(m_editor_text);
+        int prev_macro = -1;
+        size_t prev_pattern_end = std::string::npos;
+        
+        for (const auto& pat : found_patterns) {
+            if (pat.macro_number < m_selected_pattern_macro && pat.macro_number > prev_macro) {
+                prev_macro = pat.macro_number;
+                std::string prev_macro_str = "*" + std::to_string(pat.macro_number);
+                size_t prev_macro_pos = m_editor_text.find(prev_macro_str);
+                if (prev_macro_pos != std::string::npos) {
+                    // Find the end of this pattern's line (after name)
+                    prev_pattern_end = prev_macro_pos;
+                    while (prev_pattern_end < m_editor_text.length() && 
+                           m_editor_text[prev_pattern_end] != '\n' && 
+                           m_editor_text[prev_pattern_end] != '\r') {
+                        prev_pattern_end++;
+                    }
+                    // Include the newline
+                    if (prev_pattern_end < m_editor_text.length()) {
+                        if (m_editor_text[prev_pattern_end] == '\r') {
+                            prev_pattern_end++;
+                            if (prev_pattern_end < m_editor_text.length() && m_editor_text[prev_pattern_end] == '\n') {
+                                prev_pattern_end++;
+                            }
+                        } else if (m_editor_text[prev_pattern_end] == '\n') {
+                            prev_pattern_end++;
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (prev_pattern_end != std::string::npos) {
+            insert_pos = prev_pattern_end;
+        } else {
+            // No previous pattern, insert at the beginning
+            insert_pos = 0;
+        }
+        
+        // Build the new pattern
+        int pattern_number = m_selected_pattern_macro - 700;
+        std::string new_pattern = macro_str + " " + m_mml_output + ";";
+        std::string name_to_add = m_pattern_name.empty() ? std::to_string(pattern_number) : m_pattern_name;
+        new_pattern += " " + name_to_add + "\n";
+        
+        // Insert the pattern
+        m_modified_editor_text = m_editor_text.substr(0, insert_pos) + 
+                                new_pattern + 
+                                m_editor_text.substr(insert_pos);
+        m_editor_text = m_modified_editor_text;
+        m_has_unsaved_changes = false;
+        return;
+    }
+    
+    // Find the start of the pattern content (after macro number)
+    size_t content_start = macro_pos + macro_str.length();
+    while (content_start < m_editor_text.length() && std::isspace(m_editor_text[content_start])) {
+        content_start++;
+    }
+    
+    // Find the end of the pattern (semicolon, next *number, or end of line)
+    size_t content_end = content_start;
+    bool found_semicolon = false;
+    size_t line_end = content_start;
+    
+    // First, find the end of the current line
+    while (line_end < m_editor_text.length() && m_editor_text[line_end] != '\n' && m_editor_text[line_end] != '\r') {
+        line_end++;
+    }
+    
+    // Now search for semicolon or next macro within the line
+    while (content_end < line_end) {
+        if (m_editor_text[content_end] == ';') {
+            found_semicolon = true;
+            content_end++; // Include semicolon in replacement
+            break;
+        }
+        content_end++;
+    }
+    
+    // If no semicolon found, check if there's a next macro on the next line
+    if (!found_semicolon) {
+        // Skip to start of next line
+        size_t next_line_start = line_end;
+        if (next_line_start < m_editor_text.length() && m_editor_text[next_line_start] == '\r') {
+            next_line_start++;
+        }
+        if (next_line_start < m_editor_text.length() && m_editor_text[next_line_start] == '\n') {
+            next_line_start++;
+        }
+        // Skip whitespace
+        while (next_line_start < m_editor_text.length() && std::isspace(m_editor_text[next_line_start])) {
+            next_line_start++;
+        }
+        // Check if it's a macro
+        if (next_line_start < m_editor_text.length() && m_editor_text[next_line_start] == '*') {
+            // Check if it's followed by digits (701-799)
+            size_t check_pos = next_line_start + 1;
+            while (check_pos < m_editor_text.length() && std::isdigit(m_editor_text[check_pos])) {
+                check_pos++;
+            }
+            if (check_pos > next_line_start + 1) {
+                // Found a new macro, stop at end of current line
+                content_end = line_end;
+            } else {
+                // Not a macro, stop at end of current line anyway
+                content_end = line_end;
+            }
+        } else {
+            // No next macro, stop at end of current line
+            content_end = line_end;
+        }
+    }
+    
+    // Build the new pattern content - always end with semicolon
+    std::string new_pattern_content = m_mml_output + ";";
+    
+    // Find where the name starts (after semicolon) to preserve it - must be on same line
+    size_t name_start = found_semicolon ? content_end : std::string::npos;
+    size_t name_end = name_start;
+    
+    if (found_semicolon && name_start < line_end) {
+        // Skip whitespace after semicolon
+        while (name_start < line_end && std::isspace(m_editor_text[name_start])) {
+            name_start++;
+        }
+        // Name ends at end of line (don't go beyond line_end)
+        name_end = line_end;
+    }
+    
+    // Add the pattern name (or pattern number if blank)
+    int pattern_number = m_selected_pattern_macro - 700;
+    std::string name_to_add;
+    if (!m_pattern_name.empty()) {
+        name_to_add = m_pattern_name;
+    } else if (found_semicolon && name_start < name_end) {
+        // Preserve existing name if we're not changing it
+        name_to_add = m_editor_text.substr(name_start, name_end - name_start);
+        // Trim whitespace
+        while (!name_to_add.empty() && std::isspace(name_to_add[0])) {
+            name_to_add.erase(0, 1);
+        }
+        while (!name_to_add.empty() && std::isspace(name_to_add[name_to_add.length() - 1])) {
+            name_to_add.erase(name_to_add.length() - 1, 1);
+        }
+        // If still empty after trimming, use pattern number
+        if (name_to_add.empty()) {
+            name_to_add = std::to_string(pattern_number);
+        }
+    } else {
+        // No existing name, use pattern number
+        name_to_add = std::to_string(pattern_number);
+    }
+    
+    if (!name_to_add.empty()) {
+        new_pattern_content += " " + name_to_add;
+    }
+    
+    // Determine where to stop replacing - line_end points to newline or end of string
+    size_t replace_end = line_end;
+    // Check if there's a newline to preserve
+    bool has_newline = (replace_end < m_editor_text.length() && 
+                       (m_editor_text[replace_end] == '\n' || m_editor_text[replace_end] == '\r'));
+    
+    // Add newline to the new pattern content
+    if (has_newline) {
+        // Preserve the original newline style
+        if (replace_end < m_editor_text.length() && m_editor_text[replace_end] == '\r') {
+            new_pattern_content += "\r";
+            replace_end++;
+            if (replace_end < m_editor_text.length() && m_editor_text[replace_end] == '\n') {
+                new_pattern_content += "\n";
+                replace_end++;
+            }
+        } else if (replace_end < m_editor_text.length() && m_editor_text[replace_end] == '\n') {
+            new_pattern_content += "\n";
+            replace_end++;
+        }
+    } else {
+        // No newline at end of file, add one
+        new_pattern_content += "\n";
+    }
+    
+    // Replace the pattern content in the editor text (only replace the line, preserve everything after)
+    m_modified_editor_text = m_editor_text.substr(0, content_start) + 
+                            new_pattern_content + 
+                            m_editor_text.substr(replace_end);
+    
+    // Update the original editor text
+    m_editor_text = m_modified_editor_text;
+    m_has_unsaved_changes = false;
+}
+
+void PatternEditor::CancelPatternChanges() {
+    if (m_selected_pattern_macro < 701) {
+        return; // No pattern selected
+    }
+    
+    // Reload the original pattern
+    std::vector<PatternInfo> found_patterns = ScanForPatterns(m_editor_text);
+    for (const auto& pat : found_patterns) {
+        if (pat.macro_number == m_selected_pattern_macro) {
+            LoadPattern(pat);
+            break;
+        }
+    }
+    
+    m_modified_editor_text = m_editor_text;
+    m_has_unsaved_changes = false;
+}
+
+void PatternEditor::CreateDefaultPattern() {
+    // Check if *701 already exists
+    if (m_editor_text.find("*701") != std::string::npos) {
+        return; // Already exists, don't create
+    }
+    
+    // Create a default *701 pattern with a single rest and pattern name "1"
+    std::string default_pattern = "*701 l1 r ; 1\n";
+    
+    // Insert at the beginning of the editor text
+    if (m_editor_text.empty()) {
+        m_editor_text = default_pattern;
+    } else {
+        // Insert at the top
+        m_editor_text = default_pattern + m_editor_text;
+    }
+    
+    // Update modified text as well
+    m_modified_editor_text = m_editor_text;
+}
+
+int PatternEditor::FindNextAvailableMacro() {
+    std::vector<PatternInfo> found_patterns = ScanForPatterns(m_editor_text);
+    std::vector<int> used_macros;
+    for (const auto& pat : found_patterns) {
+        used_macros.push_back(pat.macro_number);
+    }
+    
+    // Find the first available macro from 701 to 799
+    for (int i = 701; i <= 799; ++i) {
+        bool found = false;
+        for (int used : used_macros) {
+            if (used == i) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            return i;
+        }
+    }
+    
+    return -1; // No available macros
+}
+
+void PatternEditor::CreateNewPattern(bool copy_current) {
+    int new_macro = FindNextAvailableMacro();
+    if (new_macro == -1) {
+        return; // No available macros
+    }
+    
+    std::string new_pattern;
+    if (copy_current && m_selected_pattern_macro >= 701) {
+        // Copy current pattern
+        new_pattern = "*" + std::to_string(new_macro) + " " + m_mml_output + ";";
+        if (!m_pattern_name.empty()) {
+            new_pattern += " " + m_pattern_name;
+        }
+    } else {
+        // Create clean pattern
+        new_pattern = "*" + std::to_string(new_macro) + " l1 r;";
+    }
+    new_pattern += "\n";
+    
+    // Insert at the beginning of the editor text
+    if (m_editor_text.empty()) {
+        m_editor_text = new_pattern;
+    } else {
+        m_editor_text = new_pattern + m_editor_text;
+    }
+    
+    m_modified_editor_text = m_editor_text;
+    
+    // Load the new pattern
+    std::vector<PatternInfo> found_patterns = ScanForPatterns(m_editor_text);
+    for (const auto& pat : found_patterns) {
+        if (pat.macro_number == new_macro) {
+            LoadPattern(pat);
+            break;
+        }
+    }
 }
 
 std::string PatternEditor::NoteToMML(int note_index, int note_length) {
@@ -463,6 +820,18 @@ void PatternEditor::Render() {
     if (ImGui::Begin("Pattern Editor", &m_open)) {
         // Pattern list from editor (shown at top)
         std::vector<PatternInfo> found_patterns = ScanForPatterns(m_editor_text);
+        
+        // If no patterns exist, create a default *701 pattern
+        if (found_patterns.empty()) {
+            CreateDefaultPattern();
+            // Re-scan to get the newly created pattern
+            found_patterns = ScanForPatterns(m_editor_text);
+            // Automatically load the default pattern
+            if (!found_patterns.empty()) {
+                LoadPattern(found_patterns[0]);
+            }
+        }
+        
         if (!found_patterns.empty()) {
             ImGui::Text("Found Patterns:");
             if (ImGui::BeginListBox("##PatternList", ImVec2(-1, 100))) {
@@ -471,6 +840,9 @@ void PatternEditor::Render() {
                     // Pattern number is macro_number - 700 (701 = pattern 1, 702 = pattern 2, etc.)
                     int pattern_number = pat.macro_number - 700;
                     std::string label = "Pattern " + std::to_string(pattern_number) + " (*" + std::to_string(pat.macro_number) + ")";
+                    // Show name, or pattern number if name is blank
+                    std::string display_name = pat.name.empty() ? std::to_string(pattern_number) : pat.name;
+                    label += " - " + display_name;
                     if (pat.instrument >= 1) {
                         label += " @" + std::to_string(pat.instrument);
                     }
@@ -486,6 +858,60 @@ void PatternEditor::Render() {
                 }
                 ImGui::EndListBox();
             }
+            
+            // Buttons to create new patterns
+            if (ImGui::Button("New Pattern (Clean)")) {
+                CreateNewPattern(false);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("New Pattern (Copy Current)")) {
+                CreateNewPattern(true);
+            }
+            
+            ImGui::Separator();
+        }
+        
+        // Show currently selected pattern and Apply/Cancel buttons
+        if (m_selected_pattern_macro >= 701) {
+            int pattern_number = m_selected_pattern_macro - 700;
+            ImGui::Text("Editing Pattern %d (*%d)", pattern_number, m_selected_pattern_macro);
+            if (m_has_unsaved_changes) {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "(Unsaved changes)");
+            }
+            
+            ImGui::SameLine(ImGui::GetWindowWidth() - 200);
+            if (ImGui::Button("Apply", ImVec2(80, 0))) {
+                ApplyPatternChanges();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(80, 0))) {
+                CancelPatternChanges();
+            }
+            
+            // Pattern name input
+            ImGui::Text("Pattern Name (optional):");
+            ImGui::SameLine();
+            static int last_selected_macro = -1;
+            if (m_selected_pattern_macro != last_selected_macro) {
+                // Update buffer when pattern changes - show pattern number if name is empty
+                std::fill(m_pattern_name_buffer.begin(), m_pattern_name_buffer.end(), 0);
+                std::string name_to_show = m_pattern_name.empty() ? std::to_string(pattern_number) : m_pattern_name;
+                std::copy(name_to_show.begin(), name_to_show.end(), m_pattern_name_buffer.begin());
+                last_selected_macro = m_selected_pattern_macro;
+            }
+            ImGui::SetNextItemWidth(200);
+            if (ImGui::InputText("##PatternName", m_pattern_name_buffer.data(), m_pattern_name_buffer.size())) {
+                std::string input_name = std::string(m_pattern_name_buffer.data());
+                // If user set it to the pattern number or cleared it, treat as empty (will auto-use pattern number)
+                if (input_name.empty() || input_name == std::to_string(pattern_number)) {
+                    m_pattern_name = "";
+                } else {
+                    m_pattern_name = input_name;
+                }
+                m_has_unsaved_changes = true;
+            }
+            
             ImGui::Separator();
         }
         

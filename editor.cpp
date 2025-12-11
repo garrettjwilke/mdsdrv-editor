@@ -578,6 +578,13 @@ void Editor::RenderPatternEditor() {
         // Update the pattern editor with current editor text for pattern scanning
         m_patternEditor->SetEditorText(m_text);
         m_patternEditor->Render();
+        
+        // Check if pattern editor has modified text that should be applied
+        std::string modified_text = m_patternEditor->GetModifiedEditorText();
+        if (modified_text != m_text && !m_patternEditor->HasUnsavedChanges()) {
+            // Changes were applied, update the editor text
+            m_text = modified_text;
+        }
     }
 }
 

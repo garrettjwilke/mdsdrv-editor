@@ -12,7 +12,9 @@ public:
     void Render();
     bool IsOpen() const { return m_open; }
     void SetOpen(bool open) { m_open = open; if (open) m_request_focus = true; }
-    void SetEditorText(const std::string& text) { m_editor_text = text; }
+    void SetEditorText(const std::string& text);
+    std::string GetModifiedEditorText() const { return m_modified_editor_text; }
+    bool HasUnsavedChanges() const { return m_has_unsaved_changes; }
 
 private:
     void UpdateMML();
@@ -31,10 +33,21 @@ private:
     
     std::string m_mml_output;
     std::vector<char> m_mml_buffer;
+    std::vector<char> m_pattern_name_buffer;  // Buffer for pattern name input
     std::string m_editor_text;  // Current editor text for pattern scanning
+    std::string m_modified_editor_text;  // Modified editor text with pattern changes
+    int m_selected_pattern_macro;  // Currently selected pattern macro number (-1 if none)
+    bool m_has_unsaved_changes;  // Whether there are unsaved changes
+    std::string m_pattern_name;  // Name of the currently selected pattern
     
     bool m_open;
     bool m_request_focus;
+    
+    void ApplyPatternChanges();  // Apply changes to the editor text
+    void CancelPatternChanges();  // Cancel changes and reload original pattern
+    void CreateDefaultPattern();  // Create a default *701 pattern if none exists
+    void CreateNewPattern(bool copy_current);  // Create a new pattern (copy current or clean)
+    int FindNextAvailableMacro();  // Find the next available macro number (701-799)
     
     // Pattern scanning and loading
     struct PatternInfo {
@@ -44,6 +57,7 @@ private:
         int instrument;
         int octave;
         int macro_number;  // The macro number (701, 702, etc.) - pattern number is macro_number - 700
+        std::string name;  // Optional pattern name (after semicolon)
     };
     std::vector<PatternInfo> ScanForPatterns(const std::string& text);
     bool LoadPattern(const PatternInfo& pattern);
