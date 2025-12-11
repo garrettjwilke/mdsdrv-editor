@@ -11,6 +11,55 @@ const char* PatternEditor::NOTE_NAMES[] = {
 
 const int PatternEditor::NOTE_COUNT = 12;
 
+// Color scheme for notes: 7 base notes with lighter for sharps, darker for flats
+// Index: 0=C, 1=C+/D-, 2=D, 3=D+/E-, 4=E, 5=F, 6=F+/G-, 7=G, 8=G+/A-, 9=A, 10=A+/B-, 11=B
+// Base notes: C=0, D=2, E=4, F=5, G=7, A=9, B=11
+// Sharps: C+=1, D+=3, F+=6, G+=8, A+=10
+// Flats: D-=1, E-=3, G-=6, A-=8, B-=10
+ImVec4 PatternEditor::GetNoteColor(int note_index, bool is_flat) {
+    // Base note colors (RGB values)
+    // C=green, D=blue, E=yellow, F=orange, G=purple, A=red, B=cyan
+    ImVec4 base_colors[7] = {
+        ImVec4(0.2f, 0.8f, 0.2f, 1.0f),  // C - green
+        ImVec4(0.2f, 0.4f, 0.9f, 1.0f),  // D - blue
+        ImVec4(0.9f, 0.9f, 0.2f, 1.0f),  // E - yellow
+        ImVec4(1.0f, 0.6f, 0.2f, 1.0f),  // F - orange
+        ImVec4(0.7f, 0.2f, 0.9f, 1.0f),  // G - purple
+        ImVec4(0.9f, 0.2f, 0.2f, 1.0f),  // A - red
+        ImVec4(0.2f, 0.8f, 0.9f, 1.0f)   // B - cyan
+    };
+    
+    // Map note index to base note (0-6 for C, D, E, F, G, A, B)
+    int base_note_map[12] = {0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6}; // C, C+, D, D+, E, F, F+, G, G+, A, A+, B
+    int base_index = base_note_map[note_index];
+    ImVec4 base_color = base_colors[base_index];
+    
+    // Determine if it's a sharp or flat
+    bool is_sharp = (note_index == 1 || note_index == 3 || note_index == 6 || note_index == 8 || note_index == 10) && !is_flat;
+    bool is_flat_note = (note_index == 1 || note_index == 3 || note_index == 6 || note_index == 8 || note_index == 10) && is_flat;
+    
+    if (is_sharp) {
+        // Lighter version for sharps
+        return ImVec4(
+            std::min(1.0f, base_color.x * 1.3f),
+            std::min(1.0f, base_color.y * 1.3f),
+            std::min(1.0f, base_color.z * 1.3f),
+            1.0f
+        );
+    } else if (is_flat_note) {
+        // Darker version for flats
+        return ImVec4(
+            base_color.x * 0.6f,
+            base_color.y * 0.6f,
+            base_color.z * 0.6f,
+            1.0f
+        );
+    } else {
+        // Base color for natural notes
+        return base_color;
+    }
+}
+
 PatternEditor::PatternEditor() 
     : m_pattern_length(1)
     , m_note_length(4)
@@ -1063,58 +1112,95 @@ void PatternEditor::Render() {
         
         ImGui::Separator();
         
-        // Note selector with checkboxes (radio button style - only one selected at a time)
+        // Note selector with colored buttons
         ImGui::Text("Select Note/Option:");
         ImGui::Spacing();
         
-        // Rest and Tie options
+        // Rest and Tie options (gray buttons)
         bool is_rest_selected = (m_selected_note == -1 && m_selected_octave_change == 0);
         bool is_tie_selected = (m_selected_note == -2 && m_selected_octave_change == 0);
         
-        if (ImGui::Checkbox("Rest (R)", &is_rest_selected)) {
-            if (is_rest_selected) {
-                m_selected_note = -1;
-                m_selected_note_is_flat = false;
-                m_selected_octave_change = 0;
-            }
+        if (is_rest_selected) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
         }
-        ImGui::SameLine(0, 20.0f);
-        if (ImGui::Checkbox("Tie (^)", &is_tie_selected)) {
-            if (is_tie_selected) {
-                m_selected_note = -2;
-                m_selected_note_is_flat = false;
-                m_selected_octave_change = 0;
-            }
+        if (ImGui::Button("Rest (R)", ImVec2(80, 30))) {
+            m_selected_note = -1;
+            m_selected_note_is_flat = false;
+            m_selected_octave_change = 0;
+        }
+        if (is_rest_selected) {
+            ImGui::PopStyleColor(3);
+        }
+        ImGui::SameLine(0, 10.0f);
+        
+        if (is_tie_selected) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.5f, 0.7f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.4f, 0.6f, 0.8f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2f, 0.4f, 0.6f, 1.0f));
+        }
+        if (ImGui::Button("Tie (^)", ImVec2(80, 30))) {
+            m_selected_note = -2;
+            m_selected_note_is_flat = false;
+            m_selected_octave_change = 0;
+        }
+        if (is_tie_selected) {
+            ImGui::PopStyleColor(3);
         }
         
         ImGui::Spacing();
         ImGui::Text("Notes:");
         
-        // Display notes in a grid
+        // Display notes in a grid with colors
         const int notes_per_row = 6;
         for (int n = 0; n < NOTE_COUNT; ++n) {
             if (n > 0 && (n % notes_per_row) != 0) {
-                ImGui::SameLine(0, 10.0f);
+                ImGui::SameLine(0, 5.0f);
             }
             
             std::string note_label = NOTE_NAMES[n];
             bool is_selected = (m_selected_note == n && !m_selected_note_is_flat && m_selected_octave_change == 0);
+            ImVec4 note_color = GetNoteColor(n, false);
             
-            if (ImGui::Checkbox(note_label.c_str(), &is_selected)) {
-                if (is_selected) {
-                    m_selected_note = n;
-                    m_selected_note_is_flat = false;
-                    m_selected_octave_change = 0;
-                } else {
-                    // If unchecking, default to rest
-                    m_selected_note = -1;
-                    m_selected_note_is_flat = false;
-                    m_selected_octave_change = 0;
-                }
+            // Apply color styling
+            ImGui::PushStyleColor(ImGuiCol_Button, note_color);
+            ImVec4 hover_color = ImVec4(
+                std::min(1.0f, note_color.x * 1.2f),
+                std::min(1.0f, note_color.y * 1.2f),
+                std::min(1.0f, note_color.z * 1.2f),
+                1.0f
+            );
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hover_color);
+            ImVec4 active_color = ImVec4(
+                note_color.x * 0.8f,
+                note_color.y * 0.8f,
+                note_color.z * 0.8f,
+                1.0f
+            );
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, active_color);
+            
+            // Highlight selected note with a border effect (brighter)
+            if (is_selected) {
+                ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
             }
+            
+            if (ImGui::Button(note_label.c_str(), ImVec2(50, 30))) {
+                m_selected_note = n;
+                m_selected_note_is_flat = false;
+                m_selected_octave_change = 0;
+            }
+            
+            if (is_selected) {
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor();
+            }
+            
+            ImGui::PopStyleColor(3);
         }
         
-        // Flat alternatives for notes that can be flats
+        // Flat alternatives for notes that can be flats (darker colors)
         ImGui::Spacing();
         ImGui::Text("Flats:");
         bool is_db_selected = (m_selected_note == 1 && m_selected_note_is_flat && m_selected_octave_change == 0);
@@ -1123,93 +1209,153 @@ void PatternEditor::Render() {
         bool is_ab_selected = (m_selected_note == 8 && m_selected_note_is_flat && m_selected_octave_change == 0);
         bool is_bb_selected = (m_selected_note == 10 && m_selected_note_is_flat && m_selected_octave_change == 0);
         
-        if (ImGui::Checkbox("D-", &is_db_selected)) {
-            if (is_db_selected) {
-                m_selected_note = 1;
-                m_selected_note_is_flat = true;
-                m_selected_octave_change = 0;
-            } else {
-                m_selected_note = -1;
-                m_selected_note_is_flat = false;
-                m_selected_octave_change = 0;
-            }
+        // D- (Db)
+        ImVec4 db_color = GetNoteColor(1, true);
+        ImGui::PushStyleColor(ImGuiCol_Button, db_color);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(std::min(1.0f, db_color.x * 1.2f), std::min(1.0f, db_color.y * 1.2f), std::min(1.0f, db_color.z * 1.2f), 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(db_color.x * 0.8f, db_color.y * 0.8f, db_color.z * 0.8f, 1.0f));
+        if (is_db_selected) {
+            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
         }
-        ImGui::SameLine(0, 20.0f);
-        if (ImGui::Checkbox("E-", &is_eb_selected)) {
-            if (is_eb_selected) {
-                m_selected_note = 3;
-                m_selected_note_is_flat = true;
-                m_selected_octave_change = 0;
-            } else {
-                m_selected_note = -1;
-                m_selected_note_is_flat = false;
-                m_selected_octave_change = 0;
-            }
+        if (ImGui::Button("D-", ImVec2(50, 30))) {
+            m_selected_note = 1;
+            m_selected_note_is_flat = true;
+            m_selected_octave_change = 0;
         }
-        ImGui::SameLine(0, 20.0f);
-        if (ImGui::Checkbox("G-", &is_gb_selected)) {
-            if (is_gb_selected) {
-                m_selected_note = 6;
-                m_selected_note_is_flat = true;
-                m_selected_octave_change = 0;
-            } else {
-                m_selected_note = -1;
-                m_selected_note_is_flat = false;
-                m_selected_octave_change = 0;
-            }
+        if (is_db_selected) {
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor();
         }
-        ImGui::SameLine(0, 20.0f);
-        if (ImGui::Checkbox("A-", &is_ab_selected)) {
-            if (is_ab_selected) {
-                m_selected_note = 8;
-                m_selected_note_is_flat = true;
-                m_selected_octave_change = 0;
-            } else {
-                m_selected_note = -1;
-                m_selected_note_is_flat = false;
-                m_selected_octave_change = 0;
-            }
-        }
-        ImGui::SameLine(0, 20.0f);
-        if (ImGui::Checkbox("B-", &is_bb_selected)) {
-            if (is_bb_selected) {
-                m_selected_note = 10;
-                m_selected_note_is_flat = true;
-                m_selected_octave_change = 0;
-            } else {
-                m_selected_note = -1;
-                m_selected_note_is_flat = false;
-                m_selected_octave_change = 0;
-            }
-        }
+        ImGui::PopStyleColor(3);
         
-        // Octave change options (these are independent - can be combined with notes)
+        ImGui::SameLine(0, 10.0f);
+        // E- (Eb)
+        ImVec4 eb_color = GetNoteColor(3, true);
+        ImGui::PushStyleColor(ImGuiCol_Button, eb_color);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(std::min(1.0f, eb_color.x * 1.2f), std::min(1.0f, eb_color.y * 1.2f), std::min(1.0f, eb_color.z * 1.2f), 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(eb_color.x * 0.8f, eb_color.y * 0.8f, eb_color.z * 0.8f, 1.0f));
+        if (is_eb_selected) {
+            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
+        }
+        if (ImGui::Button("E-", ImVec2(50, 30))) {
+            m_selected_note = 3;
+            m_selected_note_is_flat = true;
+            m_selected_octave_change = 0;
+        }
+        if (is_eb_selected) {
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor();
+        }
+        ImGui::PopStyleColor(3);
+        
+        ImGui::SameLine(0, 10.0f);
+        // G- (Gb)
+        ImVec4 gb_color = GetNoteColor(6, true);
+        ImGui::PushStyleColor(ImGuiCol_Button, gb_color);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(std::min(1.0f, gb_color.x * 1.2f), std::min(1.0f, gb_color.y * 1.2f), std::min(1.0f, gb_color.z * 1.2f), 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(gb_color.x * 0.8f, gb_color.y * 0.8f, gb_color.z * 0.8f, 1.0f));
+        if (is_gb_selected) {
+            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
+        }
+        if (ImGui::Button("G-", ImVec2(50, 30))) {
+            m_selected_note = 6;
+            m_selected_note_is_flat = true;
+            m_selected_octave_change = 0;
+        }
+        if (is_gb_selected) {
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor();
+        }
+        ImGui::PopStyleColor(3);
+        
+        ImGui::SameLine(0, 10.0f);
+        // A- (Ab)
+        ImVec4 ab_color = GetNoteColor(8, true);
+        ImGui::PushStyleColor(ImGuiCol_Button, ab_color);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(std::min(1.0f, ab_color.x * 1.2f), std::min(1.0f, ab_color.y * 1.2f), std::min(1.0f, ab_color.z * 1.2f), 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(ab_color.x * 0.8f, ab_color.y * 0.8f, ab_color.z * 0.8f, 1.0f));
+        if (is_ab_selected) {
+            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
+        }
+        if (ImGui::Button("A-", ImVec2(50, 30))) {
+            m_selected_note = 8;
+            m_selected_note_is_flat = true;
+            m_selected_octave_change = 0;
+        }
+        if (is_ab_selected) {
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor();
+        }
+        ImGui::PopStyleColor(3);
+        
+        ImGui::SameLine(0, 10.0f);
+        // B- (Bb)
+        ImVec4 bb_color = GetNoteColor(10, true);
+        ImGui::PushStyleColor(ImGuiCol_Button, bb_color);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(std::min(1.0f, bb_color.x * 1.2f), std::min(1.0f, bb_color.y * 1.2f), std::min(1.0f, bb_color.z * 1.2f), 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(bb_color.x * 0.8f, bb_color.y * 0.8f, bb_color.z * 0.8f, 1.0f));
+        if (is_bb_selected) {
+            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2.0f);
+        }
+        if (ImGui::Button("B-", ImVec2(50, 30))) {
+            m_selected_note = 10;
+            m_selected_note_is_flat = true;
+            m_selected_octave_change = 0;
+        }
+        if (is_bb_selected) {
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor();
+        }
+        ImGui::PopStyleColor(3);
+        
+        // Octave change options (gray buttons)
         ImGui::Spacing();
         ImGui::Text("Octave Change:");
         bool octave_lower_selected = (m_selected_octave_change == -1);
         bool octave_none_selected = (m_selected_octave_change == 0);
         bool octave_raise_selected = (m_selected_octave_change == 1);
         
-        if (ImGui::Checkbox("Lower (<)", &octave_lower_selected)) {
-            if (octave_lower_selected) {
-                m_selected_octave_change = -1;
-            } else {
-                m_selected_octave_change = 0;
-            }
+        if (octave_lower_selected) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
         }
-        ImGui::SameLine(0, 20.0f);
-        if (ImGui::Checkbox("None", &octave_none_selected)) {
-            if (octave_none_selected) {
-                m_selected_octave_change = 0;
-            }
+        if (ImGui::Button("Lower (<)", ImVec2(100, 30))) {
+            m_selected_octave_change = -1;
         }
-        ImGui::SameLine(0, 20.0f);
-        if (ImGui::Checkbox("Raise (>)", &octave_raise_selected)) {
-            if (octave_raise_selected) {
-                m_selected_octave_change = 1;
-            } else {
-                m_selected_octave_change = 0;
-            }
+        if (octave_lower_selected) {
+            ImGui::PopStyleColor(3);
+        }
+        ImGui::SameLine(0, 10.0f);
+        
+        if (octave_none_selected) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+        }
+        if (ImGui::Button("None", ImVec2(100, 30))) {
+            m_selected_octave_change = 0;
+        }
+        if (octave_none_selected) {
+            ImGui::PopStyleColor(3);
+        }
+        ImGui::SameLine(0, 10.0f);
+        
+        if (octave_raise_selected) {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+        }
+        if (ImGui::Button("Raise (>)", ImVec2(100, 30))) {
+            m_selected_octave_change = 1;
+        }
+        if (octave_raise_selected) {
+            ImGui::PopStyleColor(3);
         }
         
         ImGui::Separator();

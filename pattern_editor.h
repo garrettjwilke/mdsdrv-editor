@@ -4,6 +4,9 @@
 #include <vector>
 #include <string>
 
+// Forward declaration for ImGui color type
+struct ImVec4;
+
 class PatternEditor {
 public:
     PatternEditor();
@@ -70,6 +73,7 @@ private:
     // Note names for display
     static const char* NOTE_NAMES[];
     static const int NOTE_COUNT;
+    static ImVec4 GetNoteColor(int note_index, bool is_flat);  // Get color for a note
 };
 
 #endif // PATTERN_EDITOR_H
