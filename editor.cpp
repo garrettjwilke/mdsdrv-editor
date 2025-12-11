@@ -34,7 +34,7 @@ Editor::Editor() : m_unsavedChanges(false), m_isPlaying(false), m_debug(false),
                    m_pendingNewFile(false), m_pendingOpenFile(false),
                    m_showThemeWindow(false), m_themeRequestFocus(false), m_themeSelection(0),
                    m_uiScale(1.0f) {
-    m_text = "@3 psg 15\n\nH @3 o3 l4 a b c d\n";
+    m_text = "@3 psg 15\n\n*701 o3 l4 a b c d; 1\nH @3 *701\n";
     m_songManager = std::make_unique<Song_Manager>();
     m_exportWindow = std::make_unique<ExportWindow>();
     m_pcmToolWindow = std::make_unique<PCMToolWindow>();
@@ -71,7 +71,7 @@ Editor::~Editor() {
 void Editor::Render() {
     RenderMenuBar();
     RenderTextEditor();
-    RenderStatusBar();
+    //RenderStatusBar();
     RenderFileDialogs();
     RenderConfirmDialogs();
     RenderExportWindow();
@@ -280,7 +280,7 @@ void Editor::RenderStatusBar() {
                  ImGuiWindowFlags_NoResize);
     
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetWindowPos(ImVec2(0, io.DisplaySize.y - 20));
+    ImGui::SetWindowPos(ImVec2(0, io.DisplaySize.y - 200));
     ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, 20));
     
     std::string status = m_filepath.empty() ? "Untitled" : m_filepath;
