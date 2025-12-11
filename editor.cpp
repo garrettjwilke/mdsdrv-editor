@@ -196,12 +196,13 @@ void Editor::RenderTextEditor() {
     ImGuiInputTextFlags flags = ImGuiInputTextFlags_AllowTabInput | 
                                 ImGuiInputTextFlags_NoHorizontalScroll;
     
-    // Ensure buffer is large enough (1MB default, grow as needed)
-    if (m_textBuffer.size() < m_text.size() + 1) {
-        m_textBuffer.resize(std::max(m_text.size() + 1, size_t(1024 * 1024)));
-    }
-    std::copy(m_text.begin(), m_text.end(), m_textBuffer.begin());
-    m_textBuffer[m_text.size()] = '\0';
+    // CRITICAL: Do NOT modify m_textBuffer here - that would overwrite user edits!
+    // The buffer is synced from m_text -> m_textBuffer ONLY when UpdateBuffer() is called:
+    // - In OpenFile() when a file is opened
+    // - In NewFile() when creating a new file  
+    // - In constructor for initial setup
+    // User edits modify m_textBuffer directly, and we sync back to m_text when InputTextMultiline returns true.
+    // Buffer should already be initialized by UpdateBuffer() - don't touch it here!
     
     // Update highlights during playback
     if (m_isPlaying) {
@@ -330,12 +331,22 @@ void Editor::NewFile() {
 }
 
 void Editor::UpdateBuffer() {
-    size_t requiredSize = std::max(m_text.size() + 1, size_t(1024));
+    // Always ensure buffer is large enough (1MB minimum to avoid frequent resizing)
+    size_t requiredSize = std::max(m_text.size() + 1, size_t(1024 * 1024)); // 1MB default
     if (m_textBuffer.size() < requiredSize) {
         m_textBuffer.resize(requiredSize);
     }
-    std::copy(m_text.begin(), m_text.end(), m_textBuffer.begin());
+    // Always sync m_text -> m_textBuffer when this is called
+    // This is only called when m_text changes externally (file opened/created)
+    // Copy the text content and ensure proper null termination
+    if (!m_text.empty()) {
+        std::copy(m_text.begin(), m_text.end(), m_textBuffer.begin());
+    }
     m_textBuffer[m_text.size()] = '\0';
+    // Ensure the rest of the buffer is null-terminated (for safety)
+    if (m_textBuffer.size() > m_text.size() + 1) {
+        std::fill(m_textBuffer.begin() + m_text.size() + 1, m_textBuffer.end(), '\0');
+    }
 }
 
 void Editor::RenderFileDialogs() {
